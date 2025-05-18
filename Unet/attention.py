@@ -1,6 +1,10 @@
 import torch 
 from torch import nn 
-from unet import Normalize
+# from Unet.unet import Normalize
+
+# import unet
+from . import unet
+
 from einops import rearrange
 
 
@@ -13,7 +17,7 @@ class AttentionBlock(nn.Module):
         super().__init__()
         self.in_channels = in_channels
 
-        self.norm = Normalize(in_channels)
+        self.norm = unet.Normalize(in_channels)
         self.q = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
         self.k = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
         self.v = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
