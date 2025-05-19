@@ -97,12 +97,12 @@ class AutoEncoderKL(nn.Module):
         # <Distribution.distribution.DiagonalGaussianDistribution object at 0x000001C7343E6AB0> -> torch.Size([1, 3, 254, 254])
         if sample_posterior:
             z = posterior.sample()
-            print("what is the shape of z [If sample_posterior is enabled]: ", z.shape)
+           
 
         else:
             z = posterior.mode()
 
-        # torch.Size([1, 3, 254, 254]) -> 
+        # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 1016, 1016])
         dec = self.decode(z)
 
 
