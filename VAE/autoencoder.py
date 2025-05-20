@@ -110,6 +110,24 @@ class AutoEncoderKL(nn.Module):
         return dec, posterior
     
 
+    def get_input(self, batch):
+
+        return batch 
+    
+    
+    def training_step(self, 
+                      batch,
+                      batch_idx,
+                      optimizer_idx):
+        
+        inputs = self.get_input(batch)
+        
+        # train Encoder+Decoder+logvar 
+        aeloss, log_dict_ae = self.loss(
+            inputs
+        )
+
+        print("Encoder Loss: ", aeloss)
  
         
 
@@ -124,6 +142,8 @@ class AutoEncoderKL(nn.Module):
 if __name__ == "__main__":
 
     x = torch.randn(1, 3, 256, 256)
+    cuda = torch.device("cuda:0")
+
 
     config = "config/config.yaml"
 
@@ -133,11 +153,11 @@ if __name__ == "__main__":
 
     
     autoencoder = AutoEncoderKL(ddconfig=config['model']['params']['ddconfig'],
-                                embed_dim=config['model']['embed_dim'])
+                                embed_dim=config['model']['embed_dim']).to(cuda)
     # print(autoencoder)
-    cuda = torch.device("cuda:0")
     # output = autoencoder.forward(x)
-    output = autoencoder.get_input(batch=x)
+    x = x.to(cuda)
+    output = autoencoder(x)
 
     print(output)
     
