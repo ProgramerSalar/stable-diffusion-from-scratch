@@ -5,6 +5,9 @@ import importlib
 import yaml
 from Distribution.distribution import DiagonalGaussianDistribution
 from Dataset.lsun import LSUNBase
+import os 
+
+
 
 def instantiate_from_config(config):
 
@@ -141,8 +144,14 @@ class AutoEncoderKL(nn.Module):
 
 if __name__ == "__main__":
 
-    x = torch.randn(1, 3, 256, 256)
-    cuda = torch.device("cuda:0")
+    # Enable expandable segments to reduce fragmentation
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    torch.cuda.empty_cache()
+
+    # Use FP16 if possible
+    torch.backends.cudnn.benchmark = True
+
+    x = torch.randn(1, 3, 256, 256).to("cuda")
 
 
     config = "config/config.yaml"
@@ -153,11 +162,13 @@ if __name__ == "__main__":
 
     
     autoencoder = AutoEncoderKL(ddconfig=config['model']['params']['ddconfig'],
-                                embed_dim=config['model']['embed_dim']).to(cuda)
+                                embed_dim=config['model']['embed_dim']).to("cuda")
     # print(autoencoder)
     # output = autoencoder.forward(x)
-    x = x.to(cuda)
-    output = autoencoder(x)
+    
+    # Run with mixed precision 
+    with torch.cuda.amp.autocast():
+        output = autoencoder(x)
 
     print(output)
     
