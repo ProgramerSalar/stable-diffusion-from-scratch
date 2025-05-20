@@ -104,9 +104,17 @@ class AutoEncoderKL(nn.Module):
 
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 1016, 1016])
         dec = self.decode(z)
+        
 
-
+        # torch.Size([1, 3, 1016, 1016]), ([1, 6, 254, 254])
         return dec, posterior
+    
+
+ 
+        
+
+        
+
     
 
 
@@ -128,7 +136,8 @@ if __name__ == "__main__":
                                 embed_dim=config['model']['embed_dim'])
     # print(autoencoder)
     cuda = torch.device("cuda:0")
-    output = autoencoder.forward(x)
+    # output = autoencoder.forward(x)
+    output = autoencoder.get_input(batch=x)
 
     print(output)
     
