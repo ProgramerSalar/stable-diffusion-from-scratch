@@ -444,7 +444,16 @@ class Decoder(nn.Module):
 
 if __name__ == "__main__":
 
-    # x = torch.randn(1, 3, 128, 128)
+    import os 
+
+    # # Enable expandable segments to reduce fragmentation
+    # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    # torch.cuda.empty_cache()
+
+    # # Use FP16 if possible
+    # torch.backends.cudnn.benchmark = True
+
+    # x = torch.randn(1, 3, 128, 128).to("cuda:0")
 
     # encoder = Encoder(ch=64,
     #                   out_ch=3,
@@ -453,31 +462,41 @@ if __name__ == "__main__":
     #                   attn_resolutions=[16],
     #                   in_channels=3,
     #                   resolution=128, 
-    #                   z_channels=16)
+    #                   double_z=False,
+    #                   z_channels=16).to("cuda:0")
     
     # print(encoder)
 
-    # cuda = torch.device("cuda")
-    # # print(cuda)
-
-    # output = encoder(x).to(cuda)
-    # print(output.shape)
+    
+    # # Run with mixed precision 
+    # with torch.cuda.amp.autocast():
+    #     z = encoder(x).to("cuda:0")
+    # print(f"{z} what is the shape of z: {z.shape}")
 
     # -------------------------------------------------------------------------------------
+    # Enable expandable segments to reduce fragmentation
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    torch.cuda.empty_cache()
+
+
+    # Use float16 if possible 
+    torch.backends.cudnn.benchmark = True
 
     decoder = Decoder(ch=64,
                       out_ch=3,
-                      ch_mult=(1, 2, 4),
+                      ch_mult=(1, 1, 2, 2, 4),
                       num_res_blocks=2,
-                      attn_resolutions=[],
+                      attn_resolutions=[16],
                       in_channels=3,
                       resolution=128,
-                      z_channels=3,
-                      )
+                      z_channels=16,
+                      ).to("cuda:0")
     
     print(decoder)
 
-    x = torch.randn(1, 3, 254, 254)
-    output = decoder(x)
+    z = torch.randn(1, 16, 124, 124).to("cuda:0")
+    with torch.cuda.amp.autocast():
+
+        output = decoder(z).to("cuda:0")
     print(output.shape)
     

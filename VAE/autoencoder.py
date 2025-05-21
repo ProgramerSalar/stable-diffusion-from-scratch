@@ -43,6 +43,9 @@ class AutoEncoderKL(nn.Module):
         self.image_key = image_key
         self.encoder = Encoder(**ddconfig)
         self.decoder = Decoder(**ddconfig)
+
+        # add the learning rate
+        self.learning_rate = 4.5e-06
         
 
         assert ddconfig["double_z"], "make sure `double_z: True` "
@@ -113,24 +116,43 @@ class AutoEncoderKL(nn.Module):
         return dec, posterior
     
 
+    
+    
+
+# ----------------------------------------------------------------------------------------------------------------
+    ##  Training Part
+
     def get_input(self, batch):
 
         return batch 
     
     
-    def training_step(self, 
-                      batch,
-                      batch_idx,
-                      optimizer_idx):
+    def vae_loss(recon_x, 
+                 x,
+                 posterior):
         
-        inputs = self.get_input(batch)
-        
-        # train Encoder+Decoder+logvar 
-        aeloss, log_dict_ae = self.loss(
-            inputs
-        )
+        recon_loss = nn.functional.mse_loss(recon_x, x)
+        kl_loss = posterior.kl().mean()
 
-        print("Encoder Loss: ", aeloss)
+        return recon_loss +  kl_loss
+    
+
+
+
+    def configure_optimizers(self):
+        lr = self.learning_rate 
+        opt_ae = torch.optim.Adam(list(self.encoder.parameters()) + 
+                                  list(self.decoder.parameters()) + 
+                                  list(self.quant_conv.parameters())+
+                                  list(self.post_quant_conv.parameters()),
+                                  lr=lr,
+                                  betas=(0.5, 0.9))
+        
+
+        return [opt_ae]
+    
+
+
  
         
 
@@ -151,7 +173,7 @@ if __name__ == "__main__":
     # Use FP16 if possible
     torch.backends.cudnn.benchmark = True
 
-    x = torch.randn(1, 3, 256, 256).to("cuda")
+    x = torch.randn(1, 3, 128, 128).to("cuda")
 
 
     config = "config/config.yaml"
@@ -163,14 +185,31 @@ if __name__ == "__main__":
     
     autoencoder = AutoEncoderKL(ddconfig=config['model']['params']['ddconfig'],
                                 embed_dim=config['model']['embed_dim']).to("cuda")
+    
     # print(autoencoder)
-    # output = autoencoder.forward(x)
+    recon_x, posterior = autoencoder(x)
+    print("reconstructed shape of data: ", recon_x.shape)
+    print("posterior: ", posterior)
+
     
     # Run with mixed precision 
     with torch.cuda.amp.autocast():
-        output = autoencoder(x)
+        # output = autoencoder(x)
+        pass
 
-    print(output)
+        # Training loop 
+        # for epoch in range(10):
+        #     recon_x, posterior = autoencoder(x)
+        #     loss = AutoEncoderKL.vae_loss(recon_x=recon_x,
+        #                                   x=x,
+        #                                   posterior=posterior)
+        #     optimizer = AutoEncoderKL.configure_optimizers()
+        #     optimizer.zero_grad()
+        #     loss.backward()
+        #     optimizer.step()
+        #     print(f"Loss: {loss.item()}")
+
+    
     
 
 
