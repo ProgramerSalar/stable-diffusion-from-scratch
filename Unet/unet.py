@@ -1,6 +1,6 @@
 import torch, math
 from torch import nn 
-from Unet.attention import make_attention
+from .attention import make_attention
 
 
 
@@ -149,7 +149,7 @@ class ResnetBlock(nn.Module):
     def forward(self, x, temb):
 
         h = x 
-        h = self.norm1(x)
+        h = self.norm1(h)
         h = nonlinearity(h)
         h = self.conv1(h)
 
@@ -313,7 +313,7 @@ class Model(nn.Module):
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
 
-                h = self.down[i_level].block[i_level](hs[-1], temb)   # hs = (tensor([32, 3, 256, 256])), hs[-1] = tensor([32, 3, 256, 256])
+                h = self.down[i_level].block[i_block](hs[-1], temb)   # hs = (tensor([32, 3, 256, 256])), hs[-1] = tensor([32, 3, 256, 256])
 
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
@@ -324,10 +324,16 @@ class Model(nn.Module):
                 hs.append(self.down[i_level].downsample(hs[-1]))
 
         # middlesampling 
-        hs = hs[-1]
+        h = hs[-1]
         h = self.mid.block_1(h, temb)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h, temb)
+
+        
+
+        # print("what is the shape of h: ", h.shape) ---> torch.Size([1, 256, 124, 124])
+        # hs_pop = hs.pop()
+        # print("what is the shape of hs:", hs_pop.shape) ---> torch.Size([1, 256, 124, 124])
 
         # Upsampling 
         for i_level in reversed(range(self.num_resolutions)): 
@@ -394,9 +400,14 @@ if __name__ == "__main__":
 
     # ----------------------------------------------------------------------------
 
-    x = torch.randn(1, 3, 256, 256)
-    t = torch.tensor([1000])
+    x = torch.randn(1, 3, 256, 256).to("cuda")
+    t = torch.tensor([1000]).to("cuda")
 
-    model = Model()
+
+
+    model = Model().to("cuda")
     print(model)
+    output = model(x, t)
+    print(output.shape)
 
+    

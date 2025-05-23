@@ -3,10 +3,19 @@ from torch import nn
 # from Unet.unet import Normalize
 
 # import unet
-from . import unet
+# from .unet import Normalize
 
 from einops import rearrange
 
+def Normalize(in_channels, 
+              num_groups=32):
+    
+    conv = nn.GroupNorm(num_channels=in_channels, 
+                        num_groups=num_groups,
+                        eps=1e-6,
+                        affine=True)
+
+    return conv 
 
 
 class AttentionBlock(nn.Module):
@@ -17,7 +26,7 @@ class AttentionBlock(nn.Module):
         super().__init__()
         self.in_channels = in_channels
 
-        self.norm = unet.Normalize(in_channels)
+        self.norm = Normalize(in_channels)
         self.q = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
         self.k = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
         self.v = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
