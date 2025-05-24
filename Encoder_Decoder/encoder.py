@@ -89,7 +89,7 @@ class Encoder(nn.Module):
             for i_block in range(self.num_res_blocks):
 
                 h = self.down[i_level].block[i_block](hs[-1], temb)
-                print("shape of h: ", h.shape)
+                print("shape of h: ", h)
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
 
@@ -240,9 +240,22 @@ class Decoder(nn.Module):
         return h 
     
 
-
+def to_float8(tensor):
+    return tensor.half()
 
 if __name__ == "__main__":
+
+    ddconfig = {
+        "ch": 128,
+        "out_ch": 3,
+        "ch_mult": (1, 1, 2, 2, 4),
+        "num_res_blocks": 1,
+        "attn_resolution": [16],
+        "in_channels": 3,
+        "resolution": 256,
+        "double_z": True,
+        "z_channels": 16
+    }
 
     import os 
 
@@ -253,44 +266,37 @@ if __name__ == "__main__":
     # Use FP16 if possible
     torch.backends.cudnn.benchmark = True
 
-    x = torch.randn(1, 3, 128, 128).to("cuda")
+    x = torch.randn(1, 3, 256, 256).to("cuda")
 
-    encoder = Encoder(ch=64,
-                      out_ch=3,
-                      ch_mult=(1, 1, 2, 2, 4),
-                      num_res_blocks=2,
-                      attn_resolutions=[16],
-                      in_channels=3,
-                      resolution=256, 
-                      double_z=False,
-                      z_channels=16).to("cuda")
+    encoder = Encoder(ch=ddconfig["ch"],
+                      out_ch=ddconfig["out_ch"],
+                      ch_mult=ddconfig["ch_mult"],
+                      num_res_blocks=ddconfig["num_res_blocks"],
+                      attn_resolutions=ddconfig["attn_resolution"],
+                      in_channels=ddconfig["in_channels"],
+                      resolution=ddconfig["resolution"],
+                      double_z=ddconfig["double_z"],
+                      z_channels=ddconfig["z_channels"]).to("cuda")
     
-    print(encoder)
+    
+    # print(encoder)
 
     
     # Run with mixed precision 
-    # with torch.cuda.amp.autocast():
-    z = encoder(x).to("cuda")
+    with torch.cuda.amp.autocast():
+        z = encoder(x).to("cuda")
     print(f"{z} what is the shape of z: {z.shape}")
 
     # -------------------------------------------------------------------------------------
-    # Enable expandable segments to reduce fragmentation
+    # # Enable expandable segments to reduce fragmentation
     # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
     # torch.cuda.empty_cache()
 
 
-    # Use float16 if possible 
+    # # Use float16 if possible 
     # torch.backends.cudnn.benchmark = True
 
-    # decoder = Decoder(ch=64,
-    #                   out_ch=3,
-    #                   ch_mult=(1, 1, 2, 2, 4),
-    #                   num_res_blocks=2,
-    #                   attn_resolutions=[16],
-    #                   in_channels=3,
-    #                   resolution=64,
-    #                   z_channels=16,
-    #                   )
+    # decoder = Decoder(ddconfig)
 
     # # Freeze model if not training 
     # decoder.eval()
@@ -299,9 +305,7 @@ if __name__ == "__main__":
 
     # # Momery efficient forward pass 
     # with torch.no_grad():
-    # #   # Explicit float16
-    #   with torch.cuda.amp.autocast(dtype=torch.float16):
-    #     z = torch.randn(1, 16, 60, 60)
+    #     output = decoder(z)
 
-    # output = decoder(z)
+
     # print(output.shape)
