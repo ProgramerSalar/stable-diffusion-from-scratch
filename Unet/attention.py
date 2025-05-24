@@ -18,61 +18,114 @@ def Normalize(in_channels,
     return conv 
 
 
-class AttentionBlock(nn.Module):
+# class AttentionBlock(nn.Module):
 
-    def __init__(self,
-                 in_channels):
+#     def __init__(self,
+#                  in_channels):
         
+#         super().__init__()
+#         self.in_channels = in_channels
+
+#         self.norm = Normalize(in_channels)
+#         self.q = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
+#         self.k = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
+#         self.v = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
+#         self.proj_out = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
+        
+        
+#     def forward(self, x):
+
+#         h_ = x 
+#         h_ = self.norm(h_)
+#         q = self.q(h_)
+#         k = self.k(h_)
+#         v = self.v(h_)
+
+#         ## compute the attention with key, query 
+#         b, c, h, w = q.shape 
+#         # [b, c, h, w] -> [b, c, h*w] -> [b, h*w, c]
+#         q = q.reshape(b, c, h*w).permute(0, 2, 1)
+#         # [b, c, h, w] -> [b, c, h*w]
+#         k = q.reshape(b, c, h*w)
+
+#         # [b, h*w, c] bmm [b, c, h*w] -> [b, h*w, h*w]
+#         w_ = torch.bmm(q, k)
+#         # w_ = q @ k
+
+#         # scale the color channels and multiply the weight(w_)
+#         w_ = w_ * (int(c) * (-0.5))
+#         # apply the softmax 
+#         w_ = nn.functional.softmax(w_, dim=2)
+
+#         ## compute the attention with values
+#         # [b, c, h, w] -> [b, c, h*w]
+#         v = v.reshape(b, c, h*w)
+#         # permute the weight [b, h*w, h*w] -> [b, h*w, h*w]
+#         w_ = w_.permute(0, 2, 1)
+        
+#         # [b, c, h*w] bmm [b, h*w, h*w] -> [b, c, h*w]
+#         output = torch.bmm(v, w_)
+
+#         # [b, c, h*w] -> [b, c, h, w]
+#         output = output.reshape(b, c, h, w)
+
+#         output = self.proj_out(output)
+
+#         return x + output
+
+class AttentionBlock(nn.Module):
+    def __init__(self, in_channels):
         super().__init__()
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
-        self.k = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
-        self.v = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
-        self.proj_out = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
-        
-        
-    def forward(self, x):
+        self.q = torch.nn.Conv2d(in_channels,
+                                 in_channels,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.k = torch.nn.Conv2d(in_channels,
+                                 in_channels,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.v = torch.nn.Conv2d(in_channels,
+                                 in_channels,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.proj_out = torch.nn.Conv2d(in_channels,
+                                        in_channels,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)
 
-        h_ = x 
+
+    def forward(self, x):
+        h_ = x
         h_ = self.norm(h_)
         q = self.q(h_)
         k = self.k(h_)
         v = self.v(h_)
 
-        ## compute the attention with key, query 
-        b, c, h, w = q.shape 
-        # [b, c, h, w] -> [b, c, h*w] -> [b, h*w, c]
-        q = q.reshape(b, c, h*w).permute(0, 2, 1)
-        # [b, c, h, w] -> [b, c, h*w]
-        k = q.reshape(b, c, h*w)
+        # compute attention
+        b,c,h,w = q.shape
+        q = q.reshape(b,c,h*w)
+        q = q.permute(0,2,1)   # b,hw,c
+        k = k.reshape(b,c,h*w) # b,c,hw
+        w_ = torch.bmm(q,k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
+        w_ = w_ * (int(c)**(-0.5))
+        w_ = torch.nn.functional.softmax(w_, dim=2)
 
-        # [b, h*w, c] bmm [b, c, h*w] -> [b, h*w, h*w]
-        w_ = torch.bmm(q, k)
-        # w_ = q @ k
+        # attend to values
+        v = v.reshape(b,c,h*w)
+        w_ = w_.permute(0,2,1)   # b,hw,hw (first hw of k, second of q)
+        h_ = torch.bmm(v,w_)     # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
+        h_ = h_.reshape(b,c,h,w)
 
-        # scale the color channels and multiply the weight(w_)
-        w_ = w_ * (int(c) * (-0.5))
-        # apply the softmax 
-        w_ = nn.functional.softmax(w_, dim=2)
+        h_ = self.proj_out(h_)
 
-        ## compute the attention with values
-        # [b, c, h, w] -> [b, c, h*w]
-        v = v.reshape(b, c, h*w)
-        # permute the weight [b, h*w, h*w] -> [b, h*w, h*w]
-        w_ = w_.permute(0, 2, 1)
-        
-        # [b, c, h*w] bmm [b, h*w, h*w] -> [b, c, h*w]
-        output = torch.bmm(v, w_)
-
-        # [b, c, h*w] -> [b, c, h, w]
-        output = output.reshape(b, c, h, w)
-
-        output = self.proj_out(output)
-
-        return x + output
-
+        return x+h_
 
 
 class LinearAttention(nn.Module):

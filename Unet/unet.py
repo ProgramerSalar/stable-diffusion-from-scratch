@@ -179,155 +179,6 @@ class ResnetBlock(nn.Module):
 
 
 
-# class Model(nn.Module):
-
-#     def __init__(
-#             self, 
-#             *,
-#             ch,
-#             out_ch,
-#             ch_mult=(1, 2, 4, 8),
-#             num_res_blocks=2,
-#             attn_resolutions,
-#             dropout=0.0,
-#             resamp_with_conv=True,
-#             in_channels=3,
-#             resolution,
-#             use_timestep=True,
-#             use_linear_attn=False,
-#             attn_type="vanilla"
-#     ):
-        
-#         super().__init__()
-#         if use_linear_attn: attn_type = "linear"
-#         self.ch = ch 
-#         self.temb_ch = self.ch * 4  # 128 * 4 = 512
-#         self.num_resolutions = len(ch_mult) # 4
-#         self.num_res_blocks = num_res_blocks
-#         self.resolution = resolution
-#         self.in_channels = in_channels
-
-#         self.use_timestep = use_timestep
-#         if self.use_timestep:
-#             # Timestep embedding 
-#             self.temb = nn.Module()
-#             self.temb.dense = nn.ModuleList([
-#                 nn.Linear(in_features=self.ch, out_features=self.temb_ch),  # [128, 512]
-#                 nn.Linear(in_features=self.temb_ch, out_features=self.temb_ch) # [512, 512]
-#             ])
-
-#         # Downsampling 
-#         self.conv_in = nn.Conv2d(in_channels=in_channels, out_channels=self.ch, kernel_size=3, stride=1, padding=1) # [3, 128]
-
-#         curr_res = resolution   # 256
-#         in_ch_mult = (1,)+(tuple(ch_mult))
-#         self.down = nn.ModuleList()
-
-#         for i in range(self.num_resolutions):   # [0, 1, 2, 3, 4]
-
-#             block = nn.ModuleList()
-#             attn = nn.ModuleList()
-#             block_in = ch * in_ch_mult[i]   # [128] * [1, 1, 1, 2, 2] -> [128, 128, 128, 256. 256]
-#             block_out = ch * ch_mult[i]     # [128] * [ 1, 1, 2, 2, 4] -> [128, 128, 256. 256, 512]
-
-#             for i_block in range(self.num_res_blocks): # [0, 1]
-
-#                 block.append(ResnetBlock(in_channels=block_in, out_channels=block_out, temb_channels=self.temb_ch, dropout=dropout))
-
-#                 block_in = block_out
-#                 if curr_res in attn_resolutions:    # 256 [16], 128 [16], 64 [16], 32 [16], 16 [16] -> Applied 
-#                     attn.append(make_attention(in_channels=block_in, attention_type=attn_type))
-
-#             down = nn.Module()
-#             down.block = block 
-#             down.attn = attn 
-
-#             if i != self.num_resolutions -1:
-#                 down.downsample = Downsample(in_channels=block_in, with_conv=resamp_with_conv)
-#                 curr_res = curr_res // 2 
-
-#             self.down.append(down)
-
-
-#         ## Middle Block 
-#         self.mid = nn.Module()
-#         self.mid.block_1 = ResnetBlock(in_channels=block_in, out_channels=block_in, temb_channels=self.temb_ch, dropout=dropout)
-#         self.mid.attn_1 = make_attention(in_channels=block_in, attention_type=attn_type)
-#         self.mid.block_2 = ResnetBlock(in_channels=block_in, out_channels=block_in, temb_channels=self.temb_ch, dropout=dropout)
-
-
-#         # Upsample Block 
-#         self.up = nn.ModuleList()
-
-#         for i_level in reversed(range(self.num_resolutions)):
-#             block = nn.ModuleList()
-#             attn = nn.ModuleList()
-#             block_out = ch * ch_mult[i_level]
-#             skip_in = ch * ch_mult[i_level]
-
-#             for i_block in range(self.num_res_blocks + 1):
-#                 if i_block == self.num_res_blocks:
-#                     skip_in = ch * in_ch_mult[i_level]
-
-#                 block.append(ResnetBlock(in_channels=block_in + skip_in, out_channels=block_out, temb_channels=self.temb_ch, dropout=dropout))
-#                 block_in = block_out
-
-#                 if curr_res in attn_resolutions:
-#                     attn.append(make_attention(in_channels=block_in, attention_type=attn_type))
-
-
-#             up = nn.Module()
-#             up.block = block
-#             up.attn = attn
-
-#             if i_level != 0:
-#                 up.upsample = Upsample(in_channels=block_in, with_conv=resamp_with_conv)
-#                 curr_res = curr_res * 2 
-
-#             self.up.insert(0, up)
-
-
-#         # End 
-#         self.norm_out = Normalize(block_in)
-#         self.conv_out = nn.Conv2d(in_channels=block_in, out_channels=out_ch, kernel_size=3, stride=1, padding=1)
-
-
-
-#     def forward(self, x, t=None, context=None):
-
-#         if context is not None:
-#             x = torch.cat((x, context), dim=1)
-
-        
-#         if self.use_timestep:
-#             # Timestep embedding 
-#             assert t is not None
-#             temb = get_timestep_embedding(t, self.ch)
-#             temb = self.temb.dense[0](temb)
-#             temb = nonlinearity(temb)
-#             temb = self.temb.dense[1](temb)
-
-#         else:
-#             temb = None
-
-
-#         # Downsampling 
-#         hs = [self.conv_in(x)]
-#         # print("hs: ", hs)
-#         for i_level in range(self.num_resolutions):
-#             print("check the Loop of Resolution:  ", i_level)
-#             for i_block in range(self.num_res_blocks): 
-#                 print("check the Loop of Residual block: ", i_block)
-
-
-#                 print("check downBlock archtecture: ", self.down[i_level].block[i_block])
-#                 h = self.down[i_level].block[i_block](
-#                     hs[-1], temb
-#                 )
-#                 print("h: ", h.shape)
-#                 print("-----")
-
-        
         
 
         
@@ -534,24 +385,25 @@ if __name__ == "__main__":
     # Use float16 if possible 
     torch.backends.cudnn.benchmark = True
 
-    x = torch.randn(1, 3, 256, 256).to("cuda")
-    t = torch.tensor([1000]).to("cuda")
+    x = torch.randn(1, 3, 256, 256)
+    t = torch.tensor([1000])
 
 
 
     model = Model(ch=128,
                   out_ch=3,
-                  ch_mult=(1, 1, 2, 2, 4),
-                  attn_resolutions=[16],
+                  ch_mult=(1, 2, 4, 4),
+                  attn_resolutions=[],
                   resolution=256,
-                  num_res_blocks=2,
+                  num_res_blocks=1,
                   in_channels=3
-                  ).to("cuda")
+                  ).to('cpu')
     # print(model)
 
     # Run with mix-precision 
     with torch.cuda.amp.autocast():
-        output = model(x, t)
+        output = model(x.to('cpu'), t.to('cpu'))
+        output = output.to("cuda")
     print(output.shape)
 
     
