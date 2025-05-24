@@ -135,7 +135,7 @@ class Decoder(nn.Module):
                  give_pre_end=False,
                  tanh_out=False,
                  use_linear_attn=False,
-                 attn_type="vanilla",
+                 attn_type="linear",
                  **ignorekwargs):
         
         super().__init__()
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     # Use FP16 if possible
     torch.backends.cudnn.benchmark = True
 
-    x = torch.randn(1, 3, 256, 256).to("cuda")
+    x = torch.randn(1, 3, 256, 256)
 
     encoder = Encoder(ch=ddconfig["ch"],
                       out_ch=ddconfig["out_ch"],
@@ -284,7 +284,8 @@ if __name__ == "__main__":
     
     # Run with mixed precision 
     with torch.cuda.amp.autocast():
-        z = encoder(x).to("cuda")
+        z = encoder(x.to("cuda"))
+        z = z.to("cuda")
     print(f"{z} what is the shape of z: {z.shape}")
 
     # -------------------------------------------------------------------------------------
