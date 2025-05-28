@@ -201,7 +201,8 @@ def make_attention(in_channels,
     assert attention_type in ["vanilla", "linear", "none"], f"attention_type {attention_type} not found."
 
     if attention_type == "vanilla":
-        return AttentionBlock(in_channels)
+        # return AttentionBlock(in_channels)
+        return FlashAttentionBlock(in_channels)
     
     elif attention_type == "linear":
         return LinearAttentionBlock(in_channels)
@@ -215,18 +216,88 @@ def make_attention(in_channels,
 
 
 
+from flash_attn import flash_attn_func  # Correct import for v2.7.4
+
+class FlashAttentionBlock(nn.Module):
+    def __init__(self, in_channels, num_heads=8):
+        super().__init__()
+        self.in_channels = in_channels
+        self.num_heads = num_heads
+        self.head_dim = in_channels // num_heads
+
+        assert in_channels % num_heads == 0, "in_channels must be divisible by num_heads"
+
+        # Replace with your actual normalization implementation
+        self.norm = nn.GroupNorm(32, in_channels)  # Example using GroupNorm
+        
+        self.q = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.k = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.v = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.proj_out = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+
+    def forward(self, x):
+        h_ = x
+        h_ = self.norm(h_)
+        
+        # Get queries, keys, values
+        q = self.q(h_)
+        k = self.k(h_)
+        v = self.v(h_)
+        
+        # Reshape for Flash Attention: [b, c, h, w] -> [b, seq_len, num_heads, head_dim]
+        b, c, h, w = q.shape
+        q = q.reshape(b, self.num_heads, self.head_dim, h * w).permute(0, 3, 1, 2).contiguous()
+        k = k.reshape(b, self.num_heads, self.head_dim, h * w).permute(0, 3, 1, 2).contiguous()
+        v = v.reshape(b, self.num_heads, self.head_dim, h * w).permute(0, 3, 1, 2).contiguous()
+        
+        # Flash Attention (version 2.7.4 functional API)
+        # Important parameters:
+        # - causal=False: bidirectional attention
+        # - softmax_scale: automatically uses 1/sqrt(d) by default
+        h_ = flash_attn_func(q, k, v, causal=False)
+        
+        # Reshape back to spatial dimensions: [b, seq_len, nheads, head_dim] -> [b, c, h, w]
+        h_ = h_.permute(0, 2, 3, 1).reshape(b, self.num_heads * self.head_dim, h, w)
+        
+        h_ = self.proj_out(h_)
+        return x + h_
 
 
 
 
 
 
-# if __name__ == "__main__":
+
+
+
+if __name__ == "__main__":
+#     x = torch.randn(1, 64, 32, 32)
 #     x = torch.randn(1, 64, 32, 32)
 #     linear_attention = LinearAttention()
 #     # print(linear_attention)
 
 #     output = linear_attention(x)
 #     # print(output)
+# ------------------------------------------------------
+
+    # x = torch.randn(1, 128, 32, 32)
+
+    # attention_block = AttentionBlock(in_channels=128)
+    # print(attention_block)
+
+    # output = attention_block(x)
+    # print(output.shape)
+
+# ----------------------------------------------------------
+
+    x = torch.randn(2, 128, 32, 32).half()
+
+    attn_block = FlashAttentionBlock(128).cuda().half()
 
 
+    # Enable autocast for mixed pricision 
+    with torch.amp.autocast('cuda'):
+        output = attn_block(x.cuda())
+
+
+    print(output.shape)

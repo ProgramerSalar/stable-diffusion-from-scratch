@@ -89,7 +89,7 @@ class Encoder(nn.Module):
             for i_block in range(self.num_res_blocks):
 
                 h = self.down[i_level].block[i_block](hs[-1], temb)
-                print("shape of h: ", h)
+                print("shape of h: ", h.shape)
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
 
@@ -276,28 +276,35 @@ if __name__ == "__main__":
                       in_channels=ddconfig["in_channels"],
                       resolution=ddconfig["resolution"],
                       double_z=ddconfig["double_z"],
-                      z_channels=ddconfig["z_channels"]).to("cuda")
+                      z_channels=ddconfig["z_channels"]).cuda().half()
     
     
     # print(encoder)
 
     
     # Run with mixed precision 
-    with torch.cuda.amp.autocast():
+    with torch.amp.autocast('cuda'):
         z = encoder(x.to("cuda"))
-        z = z.to("cuda")
-    print(f"{z} what is the shape of z: {z.shape}")
+    print(f"{z} what is the shape of z: {z.shape}") # torch.Size([1, 32, 252, 252])
 
     # -------------------------------------------------------------------------------------
     # # Enable expandable segments to reduce fragmentation
-    # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
-    # torch.cuda.empty_cache()
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    torch.cuda.empty_cache()
 
 
     # # Use float16 if possible 
-    # torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = True
 
-    # decoder = Decoder(ddconfig)
+    decoder = Decoder(ch=ddconfig["ch"],
+                      out_ch=ddconfig["out_ch"],
+                      ch_mult=ddconfig["ch_mult"],
+                      num_res_blocks=ddconfig["num_res_blocks"],
+                      attn_resolutions=ddconfig["attn_resolution"],
+                      in_channels=ddconfig["in_channels"],
+                      resolution=ddconfig["resolution"],
+                      z_channels=ddconfig["z_channels"]
+                      ).cuda().half()
 
     # # Freeze model if not training 
     # decoder.eval()
@@ -305,8 +312,8 @@ if __name__ == "__main__":
     # print(decoder)
 
     # # Momery efficient forward pass 
-    # with torch.no_grad():
-    #     output = decoder(z)
+    with torch.amp.autocast('cuda'), torch.no_grad():
+        output = decoder(z.cuda())
 
 
-    # print(output.shape)
+    print(output.shape)
