@@ -393,7 +393,7 @@ class Model(nn.Module):
             x = torch.cat((x, context), dim=1)
         if self.use_timestep:
             # timestep embedding
-            assert t is not None
+            assert t is not None, "please input the timestep"
             temb = get_timestep_embedding(t, self.ch)
             temb = self.temb.dense[0](temb)
             temb = nonlinearity(temb)
@@ -489,8 +489,8 @@ if __name__ == "__main__":
     # Use float16 if possible 
     torch.backends.cudnn.benchmark = True
 
-    x = torch.randn(1, 3, 256, 256)
-    t = torch.tensor([1000])
+    x = torch.randn(1, 3, 256, 256).cuda()
+    t = torch.tensor([1000]).cuda()
 
 
 
@@ -501,13 +501,13 @@ if __name__ == "__main__":
                   resolution=256,
                   num_res_blocks=1,
                   in_channels=3
-                  ).to('cpu')
+                  ).cuda()
     # print(model)
 
     # Run with mix-precision 
-    with torch.cuda.amp.autocast():
-        output = model(x.to('cpu'), t.to('cpu'))
-        output = output.to("cuda")
+    with torch.amp.autocast('cuda'):
+        output = model(x, t)
+        
     print(output.shape)
 
     
