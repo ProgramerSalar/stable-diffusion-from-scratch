@@ -10,6 +10,8 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 
+
+
 def instantiate_from_config(config):
 
     return get_obj_from_str(string=config["target"])(**config.get("params", dict()))
@@ -78,7 +80,7 @@ class AutoEncoderKL(pl.LightningModule):
             self.loss = self.default_loss
 
         else:
-            pass 
+            self.loss = instantiate_from_config(**lossconfig)
 
 
     def encode(self, x):
@@ -142,23 +144,45 @@ class AutoEncoderKL(pl.LightningModule):
         return self.decoder.conv_out.weight
     
     
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx, optimizer_idx):
         inputs = self.get_input(batch)
         reconstructions, posterior = self(inputs)
 
 
-        # train encoder+decoder+logvar 
-        aeloss, log_dict_ae = self.loss(inputs,
-                                        reconstructions=reconstructions,
-                                        posterior=posterior,
-                                        global_step=self.global_step,
-                                        last_layer=self.get_last_layer(),
-                                        split="train")
-        
-        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        if optimizer_idx == 0:
+            # train encoder+decoder+logvar 
+            aeloss, log_dict_ae = self.loss(inputs,
+                                            reconstructions=reconstructions,
+                                            posterior=posterior,
+                                            optimizer_idx=optimizer_idx,
+                                            global_step=self.global_step,
+                                            last_layer=self.get_last_layer(),
+                                            split="train")
+            
+            self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
 
-        return aeloss
+            return aeloss
+        
+        if optimizer_idx == 1:
+
+            # train with discriminator
+            discloss, log_dict_disc = self.loss(inputs,
+                                                reconstructions=reconstructions,
+                                                posterior=posterior,
+                                                optimizer_idx=optimizer_idx,
+                                                global_step=self.global_step,
+                                                last_layer=self.get_last_layer(),
+                                                split="train"
+                                                )
+            
+            self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+
+            return discloss
+        
+
+
     
 
     def validation_step(self, batch, batch_idx):
@@ -169,11 +193,22 @@ class AutoEncoderKL(pl.LightningModule):
                                         reconstructions=reconstructions,
                                         posterior=posterior,
                                         global_step=self.global_step,
+                                        optimizer_idx=0,
                                         last_layer=self.get_last_layer(),
                                         split="val")
         
+        discloss, log_dict_disc = self.loss(inputs,
+                                            reconstructions=reconstructions,
+                                            posterior=posterior,
+                                            optimizer_idx=1,
+                                            global_step=self.global_step,
+                                            last_layer=self.get_last_layer(),
+                                            split="val")
+        
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
+        
         self.log_dict(log_dict_ae)
+        self.log_dict(log_dict_disc)
         
         return self.log_dict
     
@@ -188,8 +223,16 @@ class AutoEncoderKL(pl.LightningModule):
                                   betas=(0.5, 0.9)
                                   )
         
+        print("know the loss dict: ", self.loss)
+        
+        opt_disc = torch.optim.Adam(self.loss.LPIPSWithDiscriminator.params(),
+                                    lr=lr,
+                                    betas=(0.5, 0.9))
+        
 
-        return [opt_ae], []
+        
+
+        return [opt_ae, opt_disc], []
     
 
     def default_loss(self, 
@@ -327,7 +370,8 @@ if __name__ == "__main__":
     
     autoencoder = AutoEncoderKL(ddconfig=config['model']['params']['ddconfig'],
                                 embed_dim=config['model']['embed_dim'],
-                                monitor="val/total_loss"
+                                monitor="val/total_loss",
+                                lossconfig=config['model']['params']['lossconfig']
                                 ).half().cuda()
     
 

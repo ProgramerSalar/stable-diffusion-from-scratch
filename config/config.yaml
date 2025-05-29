@@ -1,6 +1,7 @@
 model:
   target: AutoEncoder.autoencoder.AutoEncoderKL
   embed_dim: 3
+  monitor: val/rec_loss
   params:
     ddconfig:
       double_z: True
@@ -16,5 +17,13 @@ model:
       num_res_blocks: 2
       attn_resolutions: []
       dropout: 0.0
+    lossconfig:
+      target: VAE.loss.LPIPSWithDiscriminator
+      params:
+        disc_start: 50001
+        kl_weight: 1.0e-06
+        disc_weight: 0.5
+
     
+  
 

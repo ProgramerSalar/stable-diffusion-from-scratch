@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn 
 from torchvision import models
 from collections import namedtuple
-from utils import get_ckpt_path
+from Lpips.utils import get_ckpt_path
 
 class Vgg16(nn.Module):
 

@@ -1,3 +1,4 @@
 flash_attn==2.7.4.post1
 # torch==2.5.1+cu121
 pyYAML
+requests
