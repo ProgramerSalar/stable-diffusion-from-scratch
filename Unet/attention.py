@@ -255,6 +255,7 @@ class FlashAttentionBlock(nn.Module):
         # - causal=False: bidirectional attention
         # - softmax_scale: automatically uses 1/sqrt(d) by default
         h_ = flash_attn_func(q, k, v, causal=False)
+        print("what is the shape [After Apply the @flash-attn]", h_.shape)
         
         # Reshape back to spatial dimensions: [b, seq_len, nheads, head_dim] -> [b, c, h, w]
         h_ = h_.permute(0, 2, 3, 1).reshape(b, self.num_heads * self.head_dim, h, w)
