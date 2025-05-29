@@ -124,6 +124,7 @@ class Decoder(nn.Module):
                  *,
                  ch,
                  out_ch,
+                 double_z,
                  ch_mult=(1, 2, 4, 8),
                  num_res_blocks,
                  attn_resolutions,
@@ -134,12 +135,12 @@ class Decoder(nn.Module):
                  z_channels,
                  give_pre_end=False,
                  tanh_out=False,
-                 use_linear_attn=False,
-                 attn_type="linear",
+                #  use_linear_attn=False,
+                 attn_type="vanilla",
                  **ignorekwargs):
         
         super().__init__()
-        if use_linear_attn: attn_type = "linear"
+        # if use_linear_attn: attn_type = "linear"
         self.ch = ch 
         self.temb_ch = 0 
         self.num_resolutions = len(ch_mult)
@@ -158,7 +159,8 @@ class Decoder(nn.Module):
 
 
         # z to block_in 
-        self.conv_in = nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
+        self.conv_in = nn.Conv2d(in_channels=2*z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1) if double_z == True else \
+                        nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
 
         # middle 
         self.mid = nn.Module()
@@ -201,11 +203,13 @@ class Decoder(nn.Module):
     def forward(self, z):
 
         self.last_z_shape = z.shape 
+        print("what is the shape of z: ", self.last_z_shape)
 
         # timestep embedding 
         temb = None 
 
-        # z to block_in 
+
+        # z to block_in torch.Size([1, 32, 252, 252])
         h = self.conv_in(z)
 
         # middle 
@@ -303,13 +307,14 @@ if __name__ == "__main__":
                       attn_resolutions=ddconfig["attn_resolution"],
                       in_channels=ddconfig["in_channels"],
                       resolution=ddconfig["resolution"],
-                      z_channels=ddconfig["z_channels"]
+                      z_channels=ddconfig["z_channels"],
+                      double_z=ddconfig["double_z"],
                       ).cuda().half()
 
     # # Freeze model if not training 
     # decoder.eval()
     
-    # print(decoder)
+    print(decoder)
 
     # # Momery efficient forward pass 
     with torch.amp.autocast('cuda'), torch.no_grad():
