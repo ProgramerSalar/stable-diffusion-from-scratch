@@ -27,7 +27,7 @@ def get_obj_from_str(string, reload=False):
 
 class AutoEncoderKL(nn.Module):
 
-    pass
+    
 
     def __init__(self,
                  ddconfig,
@@ -87,7 +87,8 @@ class AutoEncoderKL(nn.Module):
 
     def decode(self, z):
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 254, 254])
-        z = self.post_quant_conv(z)     
+        print("what is the shape of z: ", z.shape)
+        z = self.post_quant_conv(z)
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 254, 254])
         dec = self.decoder(z)
         return dec 
@@ -103,13 +104,17 @@ class AutoEncoderKL(nn.Module):
         # <Distribution.distribution.DiagonalGaussianDistribution object at 0x000001C7343E6AB0> -> torch.Size([1, 3, 254, 254])
         if sample_posterior:
             z = posterior.sample()
+            z = z.half()
+            
            
 
         else:
             z = posterior.mode()
+            z = z.half()
 
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 1016, 1016])
         dec = self.decode(z)
+        print("what is shape of decoder: ", dec)
         
 
         # torch.Size([1, 3, 1016, 1016]), ([1, 6, 254, 254])
@@ -173,7 +178,7 @@ if __name__ == "__main__":
     # Use FP16 if possible
     torch.backends.cudnn.benchmark = True
 
-    x = torch.randn(1, 3, 128, 128).to("cuda")
+    x = torch.randn(1, 3, 128, 128).half().cuda()
 
 
     config = "config/config.yaml"
@@ -184,7 +189,7 @@ if __name__ == "__main__":
 
     
     autoencoder = AutoEncoderKL(ddconfig=config['model']['params']['ddconfig'],
-                                embed_dim=config['model']['embed_dim']).to("cuda")
+                                embed_dim=config['model']['embed_dim']).to("cuda").half().cuda()
     
     # print(autoencoder)
     recon_x, posterior = autoencoder(x)
@@ -193,9 +198,10 @@ if __name__ == "__main__":
 
     
     # Run with mixed precision 
-    with torch.cuda.amp.autocast():
-        # output = autoencoder(x)
-        pass
+    with torch.amp.autocast('cuda'):
+        output = autoencoder(x)
+        
+    print("Tensor of output: ", output)
 
         # Training loop 
         # for epoch in range(10):

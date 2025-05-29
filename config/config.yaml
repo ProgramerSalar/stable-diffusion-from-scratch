@@ -3,7 +3,7 @@ model:
   embed_dim: 3
   params:
     ddconfig:
-      double_z: true 
+      double_z: True
       z_channels: 3 
       resolution: 64
       in_channels: 3 

@@ -100,7 +100,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks, double_z,
+    def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks, 
                  attn_resolutions, dropout=0.0, resamp_with_conv=True, in_channels,
                  resolution, z_channels, give_pre_end=False, tanh_out=False, use_linear_attn=False, 
                  attn_type="vanilla", **ignorekwargs):
@@ -124,8 +124,11 @@ class Decoder(nn.Module):
             self.z_shape, np.prod(self.z_shape)))
 
         # z to block_in
-        self.conv_in = nn.Conv2d(in_channels=2*z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1) if double_z == True else \
-                        nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
+        # self.conv_in = nn.Conv2d(in_channels=2*z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1) if double_z == True else \
+        #                 nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
+
+
+        self.conv_in =  nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
 
         # middle
         self.mid = nn.Module()
