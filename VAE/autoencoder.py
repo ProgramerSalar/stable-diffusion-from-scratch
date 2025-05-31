@@ -84,6 +84,32 @@ class AutoEncoderKL(pl.LightningModule):
             self.loss = instantiate_from_config(lossconfig)
 
 
+    def init_from_checkpoint(self, 
+                             path,
+                             ignore_keys=list()):
+        
+        sd = torch.load(path, map_location="cuda")["state_dict"]
+        print("sd: ", sd)
+
+        for name, tensor in sd.items():
+            # print("tensor: ", tensor)
+            if tensor == "nan":
+                print("Tensor is NaN")
+
+        # verify NaN exists in state_dict 
+        for name, tensor in sd.items():
+            print(f"NaN found in: {name}, shape: {tensor.shape}")
+
+        # check for Inf values too 
+        for name, tensor in sd.items():
+            if torch.isinf(tensor).any():
+                print(f"Inf found in: {name}, shape: {tensor.shape}")
+        
+
+
+
+
+
     def encode(self, x):
         # [(1, 3, 256, 256)] -> ([1, 6, 254, 254])
         h = self.encoder(x)
@@ -97,7 +123,7 @@ class AutoEncoderKL(pl.LightningModule):
 
     def decode(self, z):
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 254, 254])
-        # print("what is the shape of z: ", z.shape)
+        print("what is the shape of z: ", z)
         z = self.post_quant_conv(z)
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 254, 254])
         dec = self.decoder(z)
@@ -135,80 +161,7 @@ class AutoEncoderKL(pl.LightningModule):
     
 
 # ----------------------------------------------------------------------------------------------------------------
-    ##  If you have Discriminator then apply this part 
-
-    # def get_input(self, batch):
-
-    #     return batch 
-    
-    # def get_last_layer(self):
-    #     return self.decoder.conv_out.weight
-    
-    
-    # def training_step(self, batch, batch_idx,):
-    #     inputs = self.get_input(batch)
-    #     reconstructions, posterior = self(inputs)
-
-
-        
-
-    #     # train with discriminator
-    #     discloss, log_dict_disc = self.loss(inputs,
-    #                                             reconstructions=reconstructions,
-    #                                             posteriors=posterior,
-    #                                             optimizer_idx=0,
-    #                                             global_step=self.global_step,
-    #                                             last_layer=self.get_last_layer(),
-    #                                             split="train"
-    #                                             )
-            
-    #     self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-    #     self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-
-    #     return discloss
-        
-
-
-    
-
-    # def validation_step(self, batch, batch_idx):
-    #     inputs = self.get_input(batch)
-    #     reconstructions, posterior = self(inputs)
-
-        
-        
-    #     discloss, log_dict_disc = self.loss(inputs,
-    #                                         reconstructions=reconstructions,
-    #                                         posteriors=posterior,
-    #                                         optimizer_idx=0,
-    #                                         global_step=self.global_step,
-    #                                         last_layer=self.get_last_layer(),
-    #                                         split="val")
-        
-        
-    #     self.log("val/rec_loss", log_dict_disc["val/rec_loss"])
-        
-        
-    #     self.log_dict(log_dict_disc)
-        
-    #     return self.log_dict
-    
-
-    # def configure_optimizers(self):
-    #     lr = self.learning_rate
-        
-    #     opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
-    #                                 lr=lr,
-    #                                 betas=(0.5, 0.9))
-        
-
-        
-
-    #     return [opt_disc], []
-    
-# ------------------------------------------------------------------------------------------------------------------------
-
-    ## IF you don't have the discriminator then you use this code 
+    #  If you have Discriminator then apply this part 
 
     def get_input(self, batch):
 
@@ -217,55 +170,28 @@ class AutoEncoderKL(pl.LightningModule):
     def get_last_layer(self):
         return self.decoder.conv_out.weight
     
-
-    def default_loss(self, 
-                     inputs,
-                     reconstructions, 
-                     posterior, 
-                     global_step,
-                     last_layer,
-                     split
-                     ):
-        
-        # Reconstruction loss (MSE)
-        rec_loss = nn.functional.mse_loss(inputs, reconstructions)
-
-        # KL Divergance loss 
-        kl_loss = posterior.kl().mean()
-        total_loss = rec_loss + 0.5 * kl_loss
-
-        # Logging 
-        log_dict = {
-            f"{split}/rec_loss": rec_loss.detach(),
-            f"{split}/kl_loss": kl_loss.detach(),
-            f"{split}/total_loss": total_loss.detach()
-        }
-
-        return total_loss, log_dict
     
-
     def training_step(self, batch, batch_idx,):
         inputs = self.get_input(batch)
         reconstructions, posterior = self(inputs)
 
 
         
-            # train encoder+decoder+logvar 
-        aeloss, log_dict_ae = self.loss(inputs,
-                                            reconstructions=reconstructions,
-                                            posterior=posterior,
-                                            global_step=self.global_step,
-                                            last_layer=self.get_last_layer(),
-                                            split="train")
+
+        # train with discriminator
+        discloss, log_dict_disc = self.loss(inputs,
+                                                reconstructions=reconstructions,
+                                                posteriors=posterior,
+                                                optimizer_idx=0,
+                                                global_step=self.global_step,
+                                                last_layer=self.get_last_layer(),
+                                                split="train"
+                                                )
             
-        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
 
-        return aeloss
-        
-        
-
-        
+        return discloss
         
 
 
@@ -275,38 +201,138 @@ class AutoEncoderKL(pl.LightningModule):
         inputs = self.get_input(batch)
         reconstructions, posterior = self(inputs)
 
-        aeloss, log_dict_ae = self.loss(inputs,
-                                        reconstructions=reconstructions,
-                                        posterior=posterior,
-                                        global_step=self.global_step,
-                                        last_layer=self.get_last_layer(),
-                                        split="val")
         
         
+        discloss, log_dict_disc = self.loss(inputs,
+                                            reconstructions=reconstructions,
+                                            posteriors=posterior,
+                                            optimizer_idx=0,
+                                            global_step=self.global_step,
+                                            last_layer=self.get_last_layer(),
+                                            split="val")
         
-        self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
-        self.log_dict(log_dict_ae)
-    
+        
+        self.log("val/rec_loss", log_dict_disc["val/rec_loss"])
+        
+        
+        self.log_dict(log_dict_disc)
         
         return self.log_dict
     
 
     def configure_optimizers(self):
         lr = self.learning_rate
-        opt_ae = torch.optim.Adam(list(self.encoder.parameters()) +
-                                  list(self.decoder.parameters()) + 
-                                  list(self.quant_conv.parameters()) + 
-                                  list(self.post_quant_conv.parameters()),
-                                  lr=lr,
-                                  betas=(0.5, 0.9)
-                                  )
+        
+        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
+                                    lr=lr,
+                                    betas=(0.5, 0.9))
+        
+
+        
+
+        return [opt_disc], []
+    
+# ------------------------------------------------------------------------------------------------------------------------
+
+    # ## IF you don't have the discriminator then you use this code 
+
+    # def get_input(self, batch):
+
+    #     return batch 
+    
+    # def get_last_layer(self):
+    #     return self.decoder.conv_out.weight
+    
+
+    # def default_loss(self, 
+    #                  inputs,
+    #                  reconstructions, 
+    #                  posterior, 
+    #                  global_step,
+    #                  last_layer,
+    #                  split
+    #                  ):
+        
+    #     # Reconstruction loss (MSE)
+    #     rec_loss = nn.functional.mse_loss(inputs, reconstructions)
+
+    #     # KL Divergance loss 
+    #     kl_loss = posterior.kl().mean()
+    #     total_loss = rec_loss + 0.5 * kl_loss
+
+    #     # Logging 
+    #     log_dict = {
+    #         f"{split}/rec_loss": rec_loss.detach(),
+    #         f"{split}/kl_loss": kl_loss.detach(),
+    #         f"{split}/total_loss": total_loss.detach()
+    #     }
+
+    #     return total_loss, log_dict
+    
+
+    # def training_step(self, batch, batch_idx,):
+    #     inputs = self.get_input(batch)
+    #     reconstructions, posterior = self(inputs)
+
+
+        
+    #         # train encoder+decoder+logvar 
+    #     aeloss, log_dict_ae = self.loss(inputs,
+    #                                         reconstructions=reconstructions,
+    #                                         posterior=posterior,
+    #                                         global_step=self.global_step,
+    #                                         last_layer=self.get_last_layer(),
+    #                                         split="train")
+            
+    #     self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+    #     self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+
+    #     return aeloss
+        
+        
+
+        
+        
+
+
+    
+
+    # def validation_step(self, batch, batch_idx):
+    #     inputs = self.get_input(batch)
+    #     reconstructions, posterior = self(inputs)
+
+    #     aeloss, log_dict_ae = self.loss(inputs,
+    #                                     reconstructions=reconstructions,
+    #                                     posterior=posterior,
+    #                                     global_step=self.global_step,
+    #                                     last_layer=self.get_last_layer(),
+    #                                     split="val")
+        
+        
+        
+    #     self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
+    #     self.log_dict(log_dict_ae)
+    
+        
+    #     return self.log_dict
+    
+
+    # def configure_optimizers(self):
+    #     lr = self.learning_rate
+    #     opt_ae = torch.optim.Adam(list(self.encoder.parameters()) +
+    #                               list(self.decoder.parameters()) + 
+    #                               list(self.quant_conv.parameters()) + 
+    #                               list(self.post_quant_conv.parameters()),
+    #                               lr=lr,
+    #                               betas=(0.5, 0.9)
+    #                               )
         
         
         
 
         
 
-        return [opt_ae], []
+    #     return [opt_ae], []
 
     
 
@@ -369,15 +395,24 @@ if __name__ == "__main__":
 
 # ------------------------------------------------------------------------------------------------------------------------------------
 
-    x = torch.randn(4, 3, 256, 256).half().cuda()
-    y = torch.randn(4, 3, 256, 256).half().cuda()
+    # x = torch.randn(4, 3, 256, 256).half().cuda()
+    # y = torch.randn(4, 3, 256, 256).half().cuda()
+
+    data_root_train = "Dataset/Data/train"
+    data_root_val = "Dataset/Data/val"
+
+    x = LSUNBase(data_root_train)
+    y = LSUNBase(data_root_val)
 
 
-    train_data = DataLoader(x, batch_size=4)
-    test_data = DataLoader(y, batch_size=4)
-    # print(train_data)
+    
 
-    config = "config/config.yaml"
+
+    train_data = DataLoader(x, batch_size=4, pin_memory=True, pin_memory_device="cuda")
+    test_data = DataLoader(y, batch_size=4 ,pin_memory=True, pin_memory_device="cuda")
+    print(next(iter(train_data)))
+
+    config = "config/vae_config/kl-f4.yaml" 
 
     # Load the YAML file 
     with open(config, 'r') as file:
@@ -387,9 +422,9 @@ if __name__ == "__main__":
     autoencoder = AutoEncoderKL(ddconfig=config['model']['params']['ddconfig'],
                                 embed_dim=config['model']['embed_dim'],
                                 monitor="val/total_loss",
-                                # lossconfig=config['model']['params']['lossconfig']
-                                lossconfig=None,
-                                ).half().cuda()
+                                lossconfig=config['model']['params']['lossconfig']
+                                # lossconfig=None,
+                                )
     
 
 
@@ -398,7 +433,8 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         max_epochs=10,
         devices=1, 
-        accelerator="gpu"
+        accelerator="gpu",
+        precision="16-mixed"    # Enable automatic mixed precision
         # enable_progress_bar=True,
         # progress_bar_refresh_rate=1,
         # checkpoint_callback=True

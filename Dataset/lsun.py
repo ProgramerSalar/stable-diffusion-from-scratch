@@ -2,7 +2,8 @@ from torch.utils.data import Dataset, DataLoader
 import os 
 from torchvision import transforms
 from PIL import Image
-
+import torch
+from torchvision.transforms import v2
 
 class LSUNBase(Dataset):
 
@@ -15,7 +16,8 @@ class LSUNBase(Dataset):
         self.transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            v2.ToDtype(dtype=torch.float16, scale=False)
         ])
 
 
@@ -44,4 +46,5 @@ if __name__ == "__main__":
 
     data = LSUNBase(data_root)
     dataloader = DataLoader(data, batch_size=4, shuffle=True)
+    print(next(iter(dataloader)))
     
