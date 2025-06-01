@@ -75,6 +75,9 @@ class Encoder(nn.Module):
         # timestep embedding
         temb = None
 
+        print("conv_in: ", self.conv_in)
+        print("input data: ", x)
+
         # downsampling
         hs = [self.conv_in(x)]
         for i_level in range(self.num_resolutions):
