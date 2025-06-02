@@ -126,11 +126,9 @@ class Decoder(nn.Module):
         print("Working with z of shape {} = {} dimensions.".format(
             self.z_shape, np.prod(self.z_shape)))
 
-        # z to block_in
-        # self.conv_in = nn.Conv2d(in_channels=2*z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1) if double_z == True else \
-        #                 nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
-
-
+        ##  double_z is True
+        # self.conv_in = nn.Conv2d(in_channels=2*z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1) 
+        ##  double_z is False 
         self.conv_in =  nn.Conv2d(in_channels=z_channels, out_channels=block_in, kernel_size=3, stride=1, padding=1)
 
         # middle
@@ -219,13 +217,13 @@ if __name__ == "__main__":
     ddconfig = {
         "ch": 128,
         "out_ch": 3,
-        "ch_mult": (1, 1, 2, 2, 4),
+        "ch_mult": (1, 2, 4),
         "num_res_blocks": 2,
-        "attn_resolution": [16],
+        "attn_resolution": [],
         "in_channels": 3,
         "resolution": 256,
         "double_z": True,
-        "z_channels": 16
+        "z_channels": 3
     }
 
     import os 
@@ -283,7 +281,7 @@ if __name__ == "__main__":
     # # Freeze model if not training 
     # decoder.eval()
     
-    # print(decoder)
+    print(decoder)
 
     # # Momery efficient forward pass 
     with torch.amp.autocast('cuda'), torch.no_grad():

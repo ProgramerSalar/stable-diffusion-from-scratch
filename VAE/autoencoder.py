@@ -123,7 +123,7 @@ class AutoEncoderKL(pl.LightningModule):
 
     def decode(self, z):
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 254, 254])
-        print("what is the shape of z: ", z)
+        # print("what is the shape of z: ", z)
         z = self.post_quant_conv(z)
         # torch.Size([1, 3, 254, 254]) -> torch.Size([1, 3, 254, 254])
         dec = self.decoder(z)
@@ -150,7 +150,7 @@ class AutoEncoderKL(pl.LightningModule):
 
         
         dec = self.decode(z)
-        # print("what is shape of decoder: ", dec)
+        # print("what is shape of decoder: ", dec.shape)
         
 
         
@@ -172,6 +172,7 @@ class AutoEncoderKL(pl.LightningModule):
     
     
     def training_step(self, batch, batch_idx,):
+      
         inputs = self.get_input(batch)
         reconstructions, posterior = self(inputs)
 
@@ -180,12 +181,12 @@ class AutoEncoderKL(pl.LightningModule):
 
         # train with discriminator
         discloss, log_dict_disc = self.loss(inputs,
-                                                reconstructions=reconstructions,
-                                                posteriors=posterior,
-                                                optimizer_idx=0,
-                                                global_step=self.global_step,
-                                                last_layer=self.get_last_layer(),
-                                                split="train"
+                                            reconstructions=reconstructions,
+                                            posteriors=posterior,
+                                            optimizer_idx=1,
+                                            global_step=self.global_step,
+                                            last_layer=self.get_last_layer(),
+                                            split="train"
                                                 )
             
         self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
@@ -206,13 +207,13 @@ class AutoEncoderKL(pl.LightningModule):
         discloss, log_dict_disc = self.loss(inputs,
                                             reconstructions=reconstructions,
                                             posteriors=posterior,
-                                            optimizer_idx=0,
+                                            optimizer_idx=1,
                                             global_step=self.global_step,
                                             last_layer=self.get_last_layer(),
                                             split="val")
         
         
-        self.log("val/rec_loss", log_dict_disc["val/rec_loss"])
+        self.log("val/disc_loss", log_dict_disc["val/disc_loss"])
         
         
         self.log_dict(log_dict_disc)
@@ -231,6 +232,7 @@ class AutoEncoderKL(pl.LightningModule):
         
 
         return [opt_disc], []
+    
     
 # ------------------------------------------------------------------------------------------------------------------------
 
@@ -342,8 +344,6 @@ class AutoEncoderKL(pl.LightningModule):
 
 
 
-
-
     
 
 
@@ -395,8 +395,8 @@ if __name__ == "__main__":
 
 # ------------------------------------------------------------------------------------------------------------------------------------
 
-    # x = torch.randn(4, 3, 256, 256).half().cuda()
-    # y = torch.randn(4, 3, 256, 256).half().cuda()
+    # x = torch.randn(4, 3, 256, 256).half()
+    # y = torch.randn(4, 3, 256, 256).half()
 
     data_root_train = "Dataset/Data/train"
     data_root_val = "Dataset/Data/val"
@@ -410,7 +410,7 @@ if __name__ == "__main__":
 
     train_data = DataLoader(x, batch_size=4, pin_memory=True, pin_memory_device="cuda")
     test_data = DataLoader(y, batch_size=4 ,pin_memory=True, pin_memory_device="cuda")
-    print(next(iter(train_data)))
+    # print(next(iter(train_data)))
 
     config = "config/vae_config/kl-f4.yaml" 
 
@@ -426,7 +426,8 @@ if __name__ == "__main__":
                                 # lossconfig=None,
                                 )
     
-
+    # autoencoder = autoencoder(x)
+    # print("AutoEncoder: ", autoencoder)
 
     
 
@@ -439,6 +440,7 @@ if __name__ == "__main__":
         # progress_bar_refresh_rate=1,
         # checkpoint_callback=True
     )
+
 
 
     trainer.fit(

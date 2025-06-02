@@ -253,65 +253,83 @@ model name:  decoder.norm_out.bias and shape : torch.Size([128])
 model name:  decoder.conv_out.weight and shape : torch.Size([3, 128, 3, 3]) -> (conv_out): Conv2d(128, 3, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
 model name:  decoder.conv_out.bias and shape : torch.Size([3])
 
+<-------------------- Both are not in here in archtecture.  --------------------->
+(quant_conv): Conv2d(6, 6, kernel_size=(1, 1), stride=(1, 1))
+(post_quant_conv): Conv2d(3, 3, kernel_size=(1, 1), stride=(1, 1))
+
+
 model name:  loss.logvar and shape : torch.Size([])
 model name:  loss.perceptual_loss.scaling_layer.shift and shape : torch.Size([1, 3, 1, 1])
 model name:  loss.perceptual_loss.scaling_layer.scale and shape : torch.Size([1, 3, 1, 1])
+
+
+
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Loss >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+<---------------------------------------------------- VGG-16 ---------------------------------->
 model name:  loss.perceptual_loss.net.slice1.0.weight and shape : torch.Size([64, 3, 3, 3])
 model name:  loss.perceptual_loss.net.slice1.0.bias and shape : torch.Size([64])
 model name:  loss.perceptual_loss.net.slice1.2.weight and shape : torch.Size([64, 64, 3, 3])
 model name:  loss.perceptual_loss.net.slice1.2.bias and shape : torch.Size([64])
+
 model name:  loss.perceptual_loss.net.slice2.5.weight and shape : torch.Size([128, 64, 3, 3])
 model name:  loss.perceptual_loss.net.slice2.5.bias and shape : torch.Size([128])
 model name:  loss.perceptual_loss.net.slice2.7.weight and shape : torch.Size([128, 128, 3, 3])
 model name:  loss.perceptual_loss.net.slice2.7.bias and shape : torch.Size([128])
+
 model name:  loss.perceptual_loss.net.slice3.10.weight and shape : torch.Size([256, 128, 3, 3])
 model name:  loss.perceptual_loss.net.slice3.10.bias and shape : torch.Size([256])
 model name:  loss.perceptual_loss.net.slice3.12.weight and shape : torch.Size([256, 256, 3, 3])
 model name:  loss.perceptual_loss.net.slice3.12.bias and shape : torch.Size([256])
 model name:  loss.perceptual_loss.net.slice3.14.weight and shape : torch.Size([256, 256, 3, 3])
 model name:  loss.perceptual_loss.net.slice3.14.bias and shape : torch.Size([256])
+
 model name:  loss.perceptual_loss.net.slice4.17.weight and shape : torch.Size([512, 256, 3, 3])
 model name:  loss.perceptual_loss.net.slice4.17.bias and shape : torch.Size([512])
 model name:  loss.perceptual_loss.net.slice4.19.weight and shape : torch.Size([512, 512, 3, 3])
 model name:  loss.perceptual_loss.net.slice4.19.bias and shape : torch.Size([512])
 model name:  loss.perceptual_loss.net.slice4.21.weight and shape : torch.Size([512, 512, 3, 3])
 model name:  loss.perceptual_loss.net.slice4.21.bias and shape : torch.Size([512])
+
 model name:  loss.perceptual_loss.net.slice5.24.weight and shape : torch.Size([512, 512, 3, 3])
 model name:  loss.perceptual_loss.net.slice5.24.bias and shape : torch.Size([512])
 model name:  loss.perceptual_loss.net.slice5.26.weight and shape : torch.Size([512, 512, 3, 3])
 model name:  loss.perceptual_loss.net.slice5.26.bias and shape : torch.Size([512])
 model name:  loss.perceptual_loss.net.slice5.28.weight and shape : torch.Size([512, 512, 3, 3])
 model name:  loss.perceptual_loss.net.slice5.28.bias and shape : torch.Size([512])
+<------------------------------------------------------- NetLinearLayer ----------------------------------------------->
 model name:  loss.perceptual_loss.lin0.model.1.weight and shape : torch.Size([1, 64, 1, 1])
 model name:  loss.perceptual_loss.lin1.model.1.weight and shape : torch.Size([1, 128, 1, 1])
 model name:  loss.perceptual_loss.lin2.model.1.weight and shape : torch.Size([1, 256, 1, 1])
 model name:  loss.perceptual_loss.lin3.model.1.weight and shape : torch.Size([1, 512, 1, 1])
 model name:  loss.perceptual_loss.lin4.model.1.weight and shape : torch.Size([1, 512, 1, 1])
-model name:  loss.discriminator.main.0.weight and shape : torch.Size([64, 3, 4, 4])
+<------------------------------------------------------ NumLayerDiscriminator ------------------------------------------>
+model name:  loss.discriminator.main.0.weight and shape : torch.Size([64, 3, 4, 4]) ->  Conv2d(3, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
 model name:  loss.discriminator.main.0.bias and shape : torch.Size([64])
-model name:  loss.discriminator.main.2.weight and shape : torch.Size([128, 64, 4, 4])
-model name:  loss.discriminator.main.3.weight and shape : torch.Size([128])
+model name:  loss.discriminator.main.2.weight and shape : torch.Size([128, 64, 4, 4]) -> Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1), bias=False)
+model name:  loss.discriminator.main.3.weight and shape : torch.Size([128]) -> BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
 model name:  loss.discriminator.main.3.bias and shape : torch.Size([128])
 model name:  loss.discriminator.main.3.running_mean and shape : torch.Size([128])
 model name:  loss.discriminator.main.3.running_var and shape : torch.Size([128])
 model name:  loss.discriminator.main.3.num_batches_tracked and shape : torch.Size([])
-model name:  loss.discriminator.main.5.weight and shape : torch.Size([256, 128, 4, 4])
-model name:  loss.discriminator.main.6.weight and shape : torch.Size([256])
+model name:  loss.discriminator.main.5.weight and shape : torch.Size([256, 128, 4, 4]) -> Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1), bias=False)
+model name:  loss.discriminator.main.6.weight and shape : torch.Size([256]) -> BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
 model name:  loss.discriminator.main.6.bias and shape : torch.Size([256])
 model name:  loss.discriminator.main.6.running_mean and shape : torch.Size([256])
 model name:  loss.discriminator.main.6.running_var and shape : torch.Size([256])
 model name:  loss.discriminator.main.6.num_batches_tracked and shape : torch.Size([])
-model name:  loss.discriminator.main.8.weight and shape : torch.Size([512, 256, 4, 4])
-model name:  loss.discriminator.main.9.weight and shape : torch.Size([512])
+model name:  loss.discriminator.main.8.weight and shape : torch.Size([512, 256, 4, 4]) -> Conv2d(256, 512, kernel_size=(4, 4), stride=(1, 1), padding=(1, 1), bias=False)
+model name:  loss.discriminator.main.9.weight and shape : torch.Size([512]) -> BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
 model name:  loss.discriminator.main.9.bias and shape : torch.Size([512])
 model name:  loss.discriminator.main.9.running_mean and shape : torch.Size([512])
 model name:  loss.discriminator.main.9.running_var and shape : torch.Size([512])
 model name:  loss.discriminator.main.9.num_batches_tracked and shape : torch.Size([])
-model name:  loss.discriminator.main.11.weight and shape : torch.Size([1, 512, 4, 4])
+model name:  loss.discriminator.main.11.weight and shape : torch.Size([1, 512, 4, 4]) -> Conv2d(512, 1, kernel_size=(4, 4), stride=(1, 1), padding=(1, 1))
 model name:  loss.discriminator.main.11.bias and shape : torch.Size([1])
-model name:  quant_conv.weight and shape : torch.Size([6, 6, 1, 1])
+
+model name:  quant_conv.weight and shape : torch.Size([6, 6, 1, 1]) -> (quant_conv): Conv2d(6, 6, kernel_size=(1, 1), stride=(1, 1))
 model name:  quant_conv.bias and shape : torch.Size([6])
-model name:  post_quant_conv.weight and shape : torch.Size([3, 3, 1, 1])
+model name:  post_quant_conv.weight and shape : torch.Size([3, 3, 1, 1])  -> post_quant_conv): Conv2d(3, 3, kernel_size=(1, 1), stride=(1, 1))
 model name:  post_quant_conv.bias and shape : torch.Size([3])
 
 ```
@@ -498,6 +516,8 @@ Model:  AutoEncoderKL(
   ##################################### I'm in here to understanding ###################################
   (quant_conv): Conv2d(6, 6, kernel_size=(1, 1), stride=(1, 1))
   (post_quant_conv): Conv2d(3, 3, kernel_size=(1, 1), stride=(1, 1))
+
+  
   (loss): LPIPSWithDiscriminator(
     (perceptual_loss): LPIPS(
       (scaling_layer): ScalingLayer()

@@ -237,7 +237,7 @@ def visualize_results(original, reconstruction):
 if __name__ == "__main__":
 
     # ckpt_path = "lightning_logs/version_0/checkpoints/epoch=9-step=9610.ckpt"     # This is my weight which i was train epochs==10
-    ckpt_path = "VAE/models/kl-f4/model.ckpt"       # This is stable-diffusion weight 
+    ckpt_path = "VAE/models/kl-f4/sd-weight/model.ckpt"       # This is stable-diffusion weight 
     
 
     
