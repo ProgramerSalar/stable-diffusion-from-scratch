@@ -3,3 +3,4 @@ flash_attn==2.7.4.post1
 pyYAML
 requests
 pytorch_lightning
+omegaconf

@@ -50,8 +50,8 @@ def load_checkpoint(model, ckpt_path, device="cuda"):
     # Load checkpoint to cpu first for safety 
     checkpoint = torch.load(ckpt_path, map_location="cpu")['state_dict'] # this is load to ckpt path
     # checkpoint = load_file(filename=ckpt_path, device="cpu")  # this is load to safetensors path
-    for name, tensor in checkpoint:
-        print(f"model name:  {name} and shape : {tensor.shape}")
+    # for name, tensor in checkpoint:
+    #     print(f"model name:  {name} and shape : {tensor.shape}")
 
     
 

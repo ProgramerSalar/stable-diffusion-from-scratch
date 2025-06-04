@@ -334,7 +334,7 @@ model name:  post_quant_conv.bias and shape : torch.Size([3])
 
 ```
 
-Archtecture: 
+# Archtecture: 
 ```
 Model:  AutoEncoderKL(
   (encoder): Encoder(

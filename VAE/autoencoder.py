@@ -43,6 +43,7 @@ class AutoEncoderKL(pl.LightningModule):
                  monitor=None):
         
         super().__init__()
+        
         self.encoder = Encoder(**ddconfig)
         self.decoder = Decoder(**ddconfig)
 
