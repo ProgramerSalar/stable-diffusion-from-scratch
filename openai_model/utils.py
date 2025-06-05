@@ -14,15 +14,12 @@ def normalization(channels):
 
 class GroupNorm32(nn.GroupNorm):
     def forward(self, x):
-        # print("GoupNorm in x: ", x)
-        # print("checking.. ->", x.float())
-        # if x.device.type == 'cpu' and x.dtype == torch.float16:
-        #     # print("hello")
-
-        print("check data in GroupNOrm: -> ", x)
-        return super().forward(x.float()).type(x.dtype)
         
-        # return super().forward(x)
+        if x.device.type == 'cpu' and x.dtype == torch.float16:
+            with torch.autocast('cpu', enabled=False):
+                return super().forward(x.float()).type(x.dtype)
+        
+        return super().forward(x)
 
 
 
@@ -160,16 +157,14 @@ def checkpoint(func, inputs, params, flag):
     :param flag: if False, disable gradient checkpointing.
     """
 
-    print("what is the meaning of function: -->", func)
-    print("what is the meaning of inputs: -->", inputs)
-    print("what is the meaning of flag: -->", flag)
+    
 
     if flag:
         args = tuple(inputs) + tuple(params)
         return CheckpointFunction.apply(func, len(inputs), *args)
     
     else:
-        print("Testing....")
+      
         a = func(*inputs)
        
         return func(*inputs)

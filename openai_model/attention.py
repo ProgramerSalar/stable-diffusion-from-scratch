@@ -296,76 +296,132 @@ def zero_module(module):
 
 
 
-class SpatialTransformer(nn.Module):
+# class SpatialTransformer(nn.Module):
 
-    """ 
+#     """ 
+#     Transformer block for image-like data.
+#     First, project the input (aka embedding)
+#     and reshape to b, t, d 
+#     Then apply standard transformer action.
+#     Finally reshape to image.
+#     """
+
+#     def __init__(self, 
+#                  in_channels, 
+#                  n_heads, 
+#                  d_head,
+#                  depth=1,
+#                  dropout=0.,
+#                  context_dim=None):
+        
+#         super().__init__()
+#         self.in_channels = in_channels
+#         inner_dim = n_heads * d_head
+#         self.norm = Normalize(in_channels)
+
+#         self.proj_in = nn.Conv2d(in_channels=in_channels, 
+#                                  out_channels=inner_dim,
+#                                  kernel_size=1,
+#                                  stride=1,
+#                                  padding=0)
+        
+        
+#         self.transformer_blocks = nn.ModuleList([
+#             BasicTransformerBlock(dim=inner_dim,
+#                                   n_heads=n_heads,
+#                                   d_head=d_head,
+#                                   dropout=dropout,
+#                                   context_dim=context_dim)
+#         ])
+
+#         self.proj_out = zero_module(nn.Conv2d(in_channels=inner_dim,
+#                                               out_channels=in_channels,
+#                                               kernel_size=1,
+#                                               stride=1,
+#                                               padding=0))
+        
+
+
+#     def forward(self, x, context=None):
+
+#         # note: if no context is given, cross-attention defaults to self-attention 
+#         b, c, h, w = x.shape 
+#         x_in = x 
+
+#         x = self.norm(x)
+#         x = self.proj_in(x)
+
+#         x = rearrange(x,
+#                       'b c h w -> b (h w) c')
+        
+#         for block in self.transformer_blocks:
+#             x = block(x, context)
+
+#         x = rearrange(x, 
+#                       'b (h w) c -> b c h w', h=h, w=w)
+        
+#         x = self.proj_out(x)
+
+#         return x + x_in
+    
+
+class SpatialTransformer(nn.Module):
+    """
     Transformer block for image-like data.
     First, project the input (aka embedding)
-    and reshape to b, t, d 
+    and reshape to b, t, d.
     Then apply standard transformer action.
-    Finally reshape to image.
+    Finally, reshape to image
     """
-
-    def __init__(self, 
-                 in_channels, 
-                 n_heads, 
-                 d_head,
-                 depth=1,
-                 dropout=0.,
-                 context_dim=None):
-        
+    def __init__(self, in_channels, n_heads, d_head,
+                 depth=1, dropout=0., context_dim=None):
         super().__init__()
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)
 
-        self.proj_in = nn.Conv2d(in_channels=in_channels, 
-                                 out_channels=inner_dim,
+        self.proj_in = nn.Conv2d(in_channels,
+                                 inner_dim,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        
-        
-        self.transformer_blocks = nn.ModuleList([
-            BasicTransformerBlock(dim=inner_dim,
-                                  n_heads=n_heads,
-                                  d_head=d_head,
-                                  dropout=dropout,
-                                  context_dim=context_dim)
-        ])
 
-        self.proj_out = zero_module(nn.Conv2d(in_channels=inner_dim,
-                                              out_channels=in_channels,
+        self.transformer_blocks = nn.ModuleList(
+            [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim)
+                for d in range(depth)]
+        )
+
+        self.proj_out = zero_module(nn.Conv2d(inner_dim,
+                                              in_channels,
                                               kernel_size=1,
                                               stride=1,
                                               padding=0))
-        
-
 
     def forward(self, x, context=None):
 
-        # note: if no context is given, cross-attention defaults to self-attention 
-        b, c, h, w = x.shape 
-        x_in = x 
-
+        # print("what is the input data in [spatialTransformer]: ", x.shape)
+        # print("what is the context in [spatialTransformer]: ", context.shape)
+        # note: if no context is given, cross-attention defaults to self-attention
+        b, c, h, w = x.shape
+        x_in = x
+        #  torch.Size([4, 512, 8, 8]) -> torch.Size([4, 512, 8, 8])
         x = self.norm(x)
+        # torch.Size([4, 512, 8, 8]) -> torch.Size([4, 512, 8, 8])
         x = self.proj_in(x)
-
-        x = rearrange(x,
-                      'b c h w -> b (h w) c')
+        # torch.Size([4, 512, 8, 8]) ->  torch.Size([4, 64, 512])
+        x = rearrange(x, 'b c h w -> b (h w) c')
         
         for block in self.transformer_blocks:
-            x = block(x, context)
-
-        x = rearrange(x, 
-                      'b (h w) c -> b c h w', h=h, w=w)
-        
+            # print("block: ", block)
+            x = block(x, context=context)
+            # print("what is the shape [After Transformer Block]: ", x.shape)
+        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
         x = self.proj_out(x)
 
+        output = x + x_in
+        # print("what is the output of [spatialTransformer]: ", output.shape)
         return x + x_in
     
-
-
 
 # class QKVAttention(nn.Module):
 
