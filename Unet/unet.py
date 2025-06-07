@@ -260,10 +260,12 @@ class Model(nn.Module):
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
                 hs.append(h)
+            
+            exit()
             if i_level != self.num_resolutions-1:
                 hs.append(self.down[i_level].downsample(hs[-1]))
 
-        print("hs: ", hs)
+                
 
         # middle
         h = hs[-1]
@@ -276,6 +278,8 @@ class Model(nn.Module):
             for i_block in range(self.num_res_blocks+1):
                 h = self.up[i_level].block[i_block](
                     torch.cat([h, hs.pop()], dim=1), temb)
+                # print(f"what is the shape of downsampling block: {hs.pop().shape}")
+                
                 if len(self.up[i_level].attn) > 0:
                     h = self.up[i_level].attn[i_block](h)
             if i_level != 0:
