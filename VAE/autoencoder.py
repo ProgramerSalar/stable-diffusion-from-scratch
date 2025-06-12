@@ -345,7 +345,34 @@ class AutoEncoderKL(pl.LightningModule):
 
 
 
+class IdentityFirstStage(torch.nn.Module):
+
+    def __init__(self,
+                 *args,
+                 vq_interface=False,
+                 **kwargs):
+        
+        self.vq_interface = vq_interface
+        super().__init__()
+
+
+    def encode(self, x, *args, **kwargs):
+        return x 
     
+
+    def decode(self, x, *args, **kwargs):
+        return x 
+    
+
+    def quantize(self, x, *args, **kwargs):
+        if self.vq_interface:
+            return x, None, [None, None, None]
+        
+        return x 
+    
+
+    def forward(self, x, *args, **kwargs):
+        return x 
 
 
  

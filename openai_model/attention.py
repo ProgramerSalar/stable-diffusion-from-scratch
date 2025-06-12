@@ -19,75 +19,6 @@ def default(val, d):
     return d() if isfunction(d) else d
 
 
-# class CrossAttention(nn.Module):
-
-#     def __init__(self,
-#                  query_dim,
-#                  context_dim=None,
-#                  heads=8,
-#                  dim_head=64,
-#                  dropout=0.):
-        
-#         super().__init__()
-#         inner_dim = dim_head * heads 
-#         context_dim = default(context_dim, query_dim)
-
-#         self.scale = dim_head ** -0.5 
-#         self.heads = heads
-
-#         self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-#         self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-#         self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
-
-#         self.to_out = nn.Sequential(
-#             nn.Linear(inner_dim, query_dim),
-#             nn.Dropout(dropout)
-#         )
-
-
-#     def forward(self, x, context=None, mask=None):
-#         h = self.heads 
-
-#         q = self.to_q(x)
-#         context = default(context, x)
-#         k = self.to_k(context)
-#         v = self.to_v(context)
-
-#         # Rearrange tensors for multi-head attention 
-#         # split heads and combine with batch dimension
-#         # shape: [batch*heads, seq_len, dim_head]
-
-#         # [batch_size, seq_len, dim_head] -> [batch_size * heads, seq_len, dim] 
-#         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
-        
-        
-#         # [batch_size * heads, seq_len, dim]  + [batch_size * heads, seq_len, dim]  -> [batch_size * heads, q_seq_len, k_seq_len]
-#         sim = einsum('b i d, b j d -> b i j', q, k)  * self.scale
-        
-
-#         # Apply mask if provided (for padding tokens, etc)
-#         if exists(mask):
-#             print("is this working...")
-#             mask = rearrange(mask, 'b ... -> b (...)')
-#             max_neg_value = -torch.finfo(sim.dtype).max 
-#             mask = repeat(mask, 'b j -> (b h) () j', h=h)
-#             sim.masked_fill_(~mask, max_neg_value)
-
-#         # compute attention weights in last dim 
-#         # [batch_size * heads, q_seq_len, k_seq_len] -> [batch_size * heads, q_seq_len, k_seq_len]
-#         attn = sim.softmax(dim=-1)
-       
-
-#         # Apply attention to values 
-#         # [batch_size * heads, q_seq_len, k_seq_len] + [batch_size * heads, seq_len, dim]  -> [batch_size * heads, seq_len, dim] 
-#         out = einsum('b i j, b j d -> b i d', attn, v)
-
-        
-#         # [batch_size * heads, seq_len, dim] -> [batch_size, seq_len, dim_head]
-#         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        
-#         return self.to_out(out)
-
 
 
 class CrossAttention(nn.Module):
@@ -296,73 +227,6 @@ def zero_module(module):
 
 
 
-# class SpatialTransformer(nn.Module):
-
-#     """ 
-#     Transformer block for image-like data.
-#     First, project the input (aka embedding)
-#     and reshape to b, t, d 
-#     Then apply standard transformer action.
-#     Finally reshape to image.
-#     """
-
-#     def __init__(self, 
-#                  in_channels, 
-#                  n_heads, 
-#                  d_head,
-#                  depth=1,
-#                  dropout=0.,
-#                  context_dim=None):
-        
-#         super().__init__()
-#         self.in_channels = in_channels
-#         inner_dim = n_heads * d_head
-#         self.norm = Normalize(in_channels)
-
-#         self.proj_in = nn.Conv2d(in_channels=in_channels, 
-#                                  out_channels=inner_dim,
-#                                  kernel_size=1,
-#                                  stride=1,
-#                                  padding=0)
-        
-        
-#         self.transformer_blocks = nn.ModuleList([
-#             BasicTransformerBlock(dim=inner_dim,
-#                                   n_heads=n_heads,
-#                                   d_head=d_head,
-#                                   dropout=dropout,
-#                                   context_dim=context_dim)
-#         ])
-
-#         self.proj_out = zero_module(nn.Conv2d(in_channels=inner_dim,
-#                                               out_channels=in_channels,
-#                                               kernel_size=1,
-#                                               stride=1,
-#                                               padding=0))
-        
-
-
-#     def forward(self, x, context=None):
-
-#         # note: if no context is given, cross-attention defaults to self-attention 
-#         b, c, h, w = x.shape 
-#         x_in = x 
-
-#         x = self.norm(x)
-#         x = self.proj_in(x)
-
-#         x = rearrange(x,
-#                       'b c h w -> b (h w) c')
-        
-#         for block in self.transformer_blocks:
-#             x = block(x, context)
-
-#         x = rearrange(x, 
-#                       'b (h w) c -> b c h w', h=h, w=w)
-        
-#         x = self.proj_out(x)
-
-#         return x + x_in
     
 
 class SpatialTransformer(nn.Module):
@@ -423,56 +287,6 @@ class SpatialTransformer(nn.Module):
         return x + x_in
     
 
-# class QKVAttention(nn.Module):
-
-#     """ 
-#     A module which performs QKV attention and splits in a different order.
-#     """
-
-#     def __init__(self, n_heads):
-#         super().__init__()
-#         self.n_heads = n_heads
-
-
-#     def forward(self, qkv):
-
-#         """ 
-#         Apply QKV attention.
-#         :param qkv: an [N x (3 * H * C) x T] tensor of Qs, Ks and Vs.
-#         :return an [N x (H * C) x T] tensor after attention.
-#         """
-
-#         # Get batch_size, channels, seq_len
-#         bs, width, length = qkv.shape
-#         # verify channels divisible by 3*heads
-#         assert width % (3 * self.n_heads) == 0
-#         # calculate channels per head
-#         ch = width // (3 * self.n_heads)
-#         # split into Q, K, V tensors
-#         q, k, v = qkv.chunk(3, dim=1)
-
-#         # Scaling factor for stability 
-#         scale = 1 / math.sqrt(math.sqrt(ch))
-
-#         weight = torch.einsum(
-#             "bct, bcs -> bts",
-#             (q * scale).view(bs * self.n_heads, ch, length),    # Scale Q and Reshape to combine batch and head dimensions
-#             (k * scale).view(bs * self.n_heads, ch, length)
-#         )
-
-#         # convert weights to probabilities using softmax
-#         weight = torch.softmax(weight.float(), dim=1).type(weight.dtype)
-
-#         # Apply attention weights to the values using another einsum operation.
-#         a = torch.einsum(
-#             "bts, bcs -> bct",
-#             weight,
-#             v.reshape(bs * self.n_heads, ch, length)
-#         )
-
-#         # combine the head and channel dimensions back to the original batch structure.
-#         return a.reshape(bs, -1, length)
-    
 
 
 
