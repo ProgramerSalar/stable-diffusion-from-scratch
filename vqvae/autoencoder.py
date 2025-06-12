@@ -1,5 +1,5 @@
 import pytorch_lightning as pl 
-from Unet.unet import Encoder, Decoder
+from Encoder_Decoder.encoder import Encoder, Decoder
 from .quantize import VectorQuantize2 as VectorQuantizer
 import torch 
 from Ema.ema import LitEma

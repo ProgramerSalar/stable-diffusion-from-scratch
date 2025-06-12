@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 import numpy as np 
 from functools import partial
 from contextlib import contextmanager
+from einops import rearrange
 
 from Diffusion.utils import (
     instantiate_from_config, 
@@ -15,7 +16,7 @@ from Diffusion.utils import (
     noise_like,
     load_config
 )
-
+from vqvae.autoencoder import VQModelInterface
 
 from Ema.ema import LitEma
 from Distribution.distribution import DiagonalGaussianDistribution
@@ -68,6 +69,9 @@ def disabled_train(self, mode=True):
     return self
 
 
+__conditioning_keys__ = {'concat': 'c_concat',
+                         'crossattn': 'c_crossattn',
+                         'adm': 'y'}
 
 
 class DDPM(pl.LightningModule):
@@ -465,6 +469,7 @@ class LatentDiffusion(DDPM):
             self.register_buffer('scale_factor', torch.tensor(scale_factor))
 
         first_stage_config = config['model']['params']['first_stage_config']
+        cond_stage_config = config['model']['params']['cond_stage_config']
 
         self.instantiate_first_stage(first_stage_config)
         self.instantiate_cond_stage(cond_stage_config)
@@ -555,26 +560,86 @@ class LatentDiffusion(DDPM):
     
 
 
-
     
     
 
 
 if __name__ == "__main__":
 
+    from torch.utils.data import Dataset, DataLoader
+
     config = load_config(config_path="Diffusion/config.yaml")
     # print(config['model']['params']['first_stage_config'])
 
+    # 2. create Dataset 
+    class TextImageDataset(Dataset):
+
+        def __init__(self, num_samples=1000):
+            self.data = []
+
+            for i in range(num_samples):
+                self.data.append({
+                    'image': torch.randn(3, 256, 256),
+                    'caption': f"A beautiful landscape with mountains {i}"
+                })
 
 
-    output = LatentDiffusion(
+
+        def __len__(self):
+            return len(self.data)
+        
+
+        
+        def __getitem__(self, idx):
+            return self.data[idx]
+        
+
+    # 3. Data collator 
+    def collate_fn(batch):
+        return {
+            "image": torch.stack([item["image"] for item in batch]),
+            "caption": [item["caption"] for item in batch]
+        }
+    
+
+    # 4. Data Module 
+    class DiffusionDataModule(pl.LightningDataModule):
+        def __init__(self, batch_size=4):
+            super().__init__()
+            self.batch_size = batch_size
+            
+        def train_dataloader(self):
+            dataset = TextImageDataset(num_samples=1000)
+            return DataLoader(
+                dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                collate_fn=collate_fn
+            )
+        
+        def val_dataloader(self):
+            dataset = TextImageDataset(num_samples=100)
+            return DataLoader(
+                dataset,
+                batch_size=self.batch_size,
+                collate_fn=collate_fn
+            )
+
+        
+
+
+
+
+    model = LatentDiffusion(
                             # first_stage_config=config['model']['params']['first_stage_config'],
                             #  cond_stage_config=config['model']['params']['cond_stage_config'],
                             #  num_timesteps_cond=config['model']['params']['num_timesteps_cond'],
                              *config
                              )
     
-    print(output)
+    
+    
+
     
 
 
