@@ -276,10 +276,16 @@ class DDPM(pl.LightningModule):
     def get_input(self, batch, k):
 
         x = batch[k]
+        # print(f"what is the shape of image in [DDPM-class]: >>>>>> {x.shape}")
+        
         if len(x.shape) == 3:
             x = x[..., None]
 
-        x = x.to(memoery_format=torch.contiguous_format).float()
+        x = rearrange(x, 'b h w c -> b c h w')
+        # print(f"what is the shape After the rearrange the shape: {x.shape}")
+
+        
+        x = x.to(memory_format=torch.contiguous_format).float()
 
         return x 
     # ---------------------------------------------------------------------
@@ -515,6 +521,217 @@ class LatentDiffusion(DDPM):
 
 
 
+    @torch.no_grad()
+    def get_input(self,
+                  batch,
+                  k,
+                  return_first_stage_outputs=False,
+                  force_c_encode=False,
+                  cond_key=None,
+                  return_original_cond=False,
+                  bs=None):
+        
+        x = super().get_input(batch, k)
+
+        if bs is not None:
+            x = x[:bs]
+        x = x.half().cuda()
+        print("what is the shape of input data in [DDPM -class]: >>>>>>>> ", x.shape)
+
+        encoder_posterior = self.encode_first_stage(x)
+
+# --------------------------------------------
+    @torch.no_grad()
+    def encode_first_stage(self, x):
+
+        if hasattr(self, "split_input_params"):
+            print(f"is this working...")
+            if self.split_input_params["patch_distributed_vq"]:
+                ks = self.split_input_params["ks"]
+                stride = self.split_input_params["stride"]
+                df = self.split_input_params["vqf"]
+                self.split_input_params["original_image_size"] = x.shape[-2:]
+
+                bs, nc, h, w = x.shape
+
+                if ks[0] > h or ks[1] > w:
+                    ks = (min(ks[0], h), min(ks[1], w))
+                    print('reducing the kernel....')
+
+
+                if stride[0] > h or stride[1] > w:
+                    stride = (min(stride[0], h), min(stride[1], w))
+                    print('reducing stride ....')
+
+                fold, unfold, normalization, weighting = self.get_fold_unfold(x, ks, stride, df=df)
+                z = unfold(x)   # (bn, nc * prod(**ks), L)
+
+                # Reshape to img shape 
+                z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1])) # (bn, nc, ks[0], ks[1], L)
+
+                output_list = [self.first_stage_model.encode(z[:, :, :, :, i])
+                               for i in range(z.shape[-1])]
+                
+                o = torch.stack(output_list, axis=-1)
+                o = o * weighting
+
+                # Reverse reshape to img shape 
+                o = o.view((o.shape[0], -1, o.shape[-1]))   # (bn, nc * ks[0] * ks[1], L)
+
+                # switch crops together 
+                decoded = fold(o)
+                decoded = decoded / normalization
+
+                return decoded
+
+            else:
+
+                return self.first_stage_model.encode(x)
+            
+        else:
+            return self.first_stage_model.encode(x)
+        
+
+
+
+
+    def get_fold_unfold(self, x, kernel_size, stride, uf=1, df=1):  # TODO: Load once not every time, shorten code.
+        
+        """ 
+        :param x: img of size (bs, c, h, w)
+        :return: n img crops of size (n, bs, c, kernel_size[0], kernel_size[1])
+        """
+
+        bs, nc, h, w = x.shape
+
+        # number of crops in image 
+        Ly = (h - kernel_size[0]) // stride[0] + 1 
+        Lx = (w - kernel_size[1]) // stride[1] + 1 
+
+        if uf == 1 and df == 1:
+            fold_params = dict(kernel_size=kernel_size,
+                               dilation=1,
+                               padding=0,
+                               stride=stride
+                               )
+            
+            unfold = torch.nn.Unfold(**fold_params)
+
+            fold = torch.nn.Fold(output_size=x.shape[2:], **fold_params)
+
+            weighting = self.get_weighting(h=kernel_size[0],
+                                           w= kernel_size[1],
+                                           Ly=Ly,
+                                           Lx=Lx,
+                                           device=x.device).to(x.dtype)
+            
+            normalization = fold(weighting).view(1, 1, h, w)    # normalize the overflow 
+            weighting = weighting.view((1, 1, kernel_size[0], kernel_size[1], Ly * Lx))
+
+
+        elif uf > 1 and df == 1:
+            fold_params = dict(kernel_size=kernel_size, dilation=1, padding=0, stride=stride)
+            unfold = torch.nn.Unfold(**fold_params)
+
+            fold_params2 = dict(kernel_size=(kernel_size[0] * uf, kernel_size[0] * uf),
+                                dilation=1, padding=0,
+                                stride=(stride[0] * uf, stride[1] * uf))
+            fold = torch.nn.Fold(output_size=(x.shape[2] * uf, x.shape[3] * uf), **fold_params2)
+
+            weighting = self.get_weighting(kernel_size[0] * uf, kernel_size[1] * uf, Ly, Lx, x.device).to(x.dtype)
+            normalization = fold(weighting).view(1, 1, h * uf, w * uf)  # normalizes the overlap
+            weighting = weighting.view((1, 1, kernel_size[0] * uf, kernel_size[1] * uf, Ly * Lx))
+
+        elif df > 1 and uf == 1:
+            fold_params = dict(kernel_size=kernel_size, dilation=1, padding=0, stride=stride)
+            unfold = torch.nn.Unfold(**fold_params)
+
+            fold_params2 = dict(kernel_size=(kernel_size[0] // df, kernel_size[0] // df),
+                                dilation=1, padding=0,
+                                stride=(stride[0] // df, stride[1] // df))
+            fold = torch.nn.Fold(output_size=(x.shape[2] // df, x.shape[3] // df), **fold_params2)
+
+            weighting = self.get_weighting(kernel_size[0] // df, kernel_size[1] // df, Ly, Lx, x.device).to(x.dtype)
+            normalization = fold(weighting).view(1, 1, h // df, w // df)  # normalizes the overlap
+            weighting = weighting.view((1, 1, kernel_size[0] // df, kernel_size[1] // df, Ly * Lx))
+
+
+        else:
+            raise NotImplementedError
+        
+
+        return fold, unfold, normalization, weighting
+
+
+
+    def get_weighting(self, h, w, Ly, Lx, device):
+
+        weighting = self.delta_border(h, w)
+        weighting = torch.clip(weighting, 
+                               self.split_input_params['clip_min_weight'],
+                               self.split_input_params['clip_max_weight'])
+        
+        weighting = weighting.view(1, h*w, 1).repeat(1, 1, Ly*Lx).to(device)
+
+        if self.split_input_params["tie_braker"]:
+            L_weighting = self.delta_border(Ly, Lx)
+            L_weighting = torch.clip(L_weighting,
+                                     self.split_input_params["clip_min_tie_weight"],
+                                     self.split_input_params["clip_max_tie_weight"])
+            
+            L_weighting = L_weighting.view(1, 1, Ly*Lx).to(device)
+            weighting = weighting * L_weighting
+
+        return weighting
+    
+
+
+
+    def delta_border(self, h, w):
+
+        """
+        :param h: height 
+        :param w: width
+        :return: normalized distance to image border.
+            with min distance = 0 at border and max dist = 0.5 at image center
+        """
+
+        lower_right_corner = torch.tensor([h - 1, w - 1]).view(1, 1, 2)
+        arr = self.meshgrid(h, w) / lower_right_corner
+
+        dist_left_up = torch.min(arr, dim=1, keepdim=True)[0]
+        dist_right_down = torch.min(1 - arr, dim=-1, keepdim=True)[0]
+        edge_dist = torch.min(torch.cat([dist_left_up, dist_right_down], dim=-1), dim=-1)[0]
+
+        return edge_dist
+    
+
+
+
+
+    def meshgrid(self, h, w):
+
+        y = torch.arange(0, h).view(h, 1, 1).repeat(1, w, 1)
+        x = torch.arange(0, w).view(1, w, 1).repeat(h, 1, 1)
+
+        arr = torch.cat([y, x], dim=-1)
+        return arr 
+    
+# ----------------------------------------------------------------------------------------------------------------
+
+
+
+
+                
+
+        
+
+
+
+    
+
+
+
 
 
 
@@ -571,59 +788,7 @@ if __name__ == "__main__":
     config = load_config(config_path="Diffusion/config.yaml")
     # print(config['model']['params']['first_stage_config'])
 
-    # 2. create Dataset 
-    class TextImageDataset(Dataset):
-
-        def __init__(self, num_samples=1000):
-            self.data = []
-
-            for i in range(num_samples):
-                self.data.append({
-                    'image': torch.randn(3, 256, 256),
-                    'caption': f"A beautiful landscape with mountains {i}"
-                })
-
-
-
-        def __len__(self):
-            return len(self.data)
-        
-
-        
-        def __getitem__(self, idx):
-            return self.data[idx]
-        
-
-    # 3. Data collator 
-    def collate_fn(batch):
-        return {
-            "image": torch.stack([item["image"] for item in batch]),
-            "caption": [item["caption"] for item in batch]
-        }
     
-
-    # 4. Data Module 
-    class DiffusionDataModule(pl.LightningDataModule):
-        def __init__(self, batch_size=4):
-            super().__init__()
-            self.batch_size = batch_size
-            
-        def train_dataloader(self):
-            dataset = TextImageDataset(num_samples=1000)
-            return DataLoader(
-                dataset,
-                batch_size=self.batch_size,
-                shuffle=True,
-                collate_fn=collate_fn
-            )
-        
-        def val_dataloader(self):
-            dataset = TextImageDataset(num_samples=100)
-            return DataLoader(
-                dataset,
-                batch_size=self.batch_size,
-                collate_fn=collate_fn
-            )
 
         
 
@@ -637,8 +802,61 @@ if __name__ == "__main__":
                              *config
                              )
     
+
+    from Diffusion.data.lsun import LSUNBedroomsTrain, LSUNBedroomsValidation
+    from Diffusion.data.dataset import DataModuleFromConfig
     
     
+    datasets = LSUNBedroomsTrain()
+
+    data_moduler = DataModuleFromConfig(batch_size=32,
+                                   train=config['data']['params']['train'],
+                                   num_workers=4,
+                                   use_worker_init_fn=True,
+                                   )
+
+    data_loader = data_moduler.train_dataloader()
+  
+    for batch in data_loader:
+    #     batch = batch['image']
+    #     batch = batch[1]
+    #     print(f"check the shape of image: {batch.shape}")
+
+        
+
+        model.get_input(batch=batch,
+                        k='image')
+        
+
+
+    from vqvae.autoencoder import VQModel
+
+    class YourDiffusionModel(nn.Module):
+
+        def __init__(self, 
+                     vq_vae_ckpt_path):
+            
+            super().__init__()
+
+            # Load vq-vae from checkpoint 
+            self.first_stage_model = VQModel.load_from_checkpoint(vq_vae_ckpt_path)
+            self.first_stage_model.eval()
+
+
+            self.split_input_params = {
+                "patch_distributed_vq": True,
+                "ks": (128, 128),
+                "stride": (64, 64),
+                "vqf": 4, 
+                "clip_min_weight": 0.01,
+                "clip_max_weight": 1.0
+            }
+
+
+
+
+        
+        
 
     
 

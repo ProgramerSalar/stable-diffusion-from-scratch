@@ -60,10 +60,16 @@ def load_checkpoint(model, ckpt_path, device="cuda"):
     if any(k.startswith('model.') for k in checkpoint.keys()):
         checkpoint = {k.replace('model.', ''): v for k, v in checkpoint.items()}
 
+    # # convert all float32 tensor to float16 
+    # checkpoint = {k: v.half() if v.dtype == torch.float32 else v for k, v in checkpoint.items()}
+
+
 
     # check for NaN/Inf in checkpoint 
     checkpoint_issues = False 
     for name, tensor in checkpoint.items():
+
+        print(f"Lets check the dtype of weight: {tensor}")
         if torch.isnan(tensor).any():
             print(f"❌ NaN found in checkpoint: {name}")
             checkpoint_issues = True
@@ -237,7 +243,8 @@ def visualize_results(original, reconstruction):
 if __name__ == "__main__":
 
     # ckpt_path = "lightning_logs/version_0/checkpoints/epoch=9-step=9610.ckpt"     # This is my weight which i was train epochs==10
-    ckpt_path = "VAE/models/kl-f4/sd-weight/model.ckpt"       # This is stable-diffusion weight 
+    # ckpt_path = "VAE/models/kl-f4/sd-weight/model.ckpt"       # This is stable-diffusion weight 
+    ckpt_path = "VAE/models/kl-f4/sd-weight/model_fp16.ckpt"       # This is stable-diffusion weight in float16
     
 
     
@@ -260,6 +267,5 @@ if __name__ == "__main__":
     print(THE_result_visualize)
 
     
-
 
     

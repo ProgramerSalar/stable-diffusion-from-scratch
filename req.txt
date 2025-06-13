@@ -4,3 +4,4 @@ pyYAML
 requests
 pytorch_lightning
 omegaconf
+Pillow==9.5.0

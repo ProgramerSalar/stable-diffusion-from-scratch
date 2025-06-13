@@ -1,0 +1,8 @@
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/00012e7f370296610a118b1a939906f8011c1a6d.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/000771d1d30bca531888ae96d133cd4b8969c2a5.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/0006e7ed3650794b844a976d39b11069f9eee7a6.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/000cc33c422f7e0ae2434617ceb7199e059342f6.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/000038527b455eaccd15e623f2e229ecdbceba2b.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/000408a4d4f3563abf4c3fe16cef57d0ec4922a5.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/000c3cbbd295fcd21994b49eb5ca69e7ef821714.jpg
+/home/manish/Desktop/stable-diffusion/stable-diffusion-from-scratch/Diffusion/bedroom/validation/0/0/0/00067aee03b47f0757897c774b36e66e4d126a00.jpg
