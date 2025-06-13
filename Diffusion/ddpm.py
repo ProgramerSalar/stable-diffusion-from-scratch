@@ -74,7 +74,7 @@ __conditioning_keys__ = {'concat': 'c_concat',
                          'adm': 'y'}
 
 
-class DDPM(pl.LightningModule):
+class DDPM(nn.Module):
 
     # classic DDPM with Gaussian diffusion, in image space 
 
@@ -421,6 +421,7 @@ class LatentDiffusion(DDPM):
     def __init__(self,
                  first_stage_config,
                  cond_stage_config,
+                 cond_stage_key="image",
                  num_timesteps_cond=None,
                  cond_stage_trainable=False,
                  concat_mode=True,
@@ -459,6 +460,7 @@ class LatentDiffusion(DDPM):
         
         self.concat_mode = concat_mode
         self.cond_stage_trainable = cond_stage_trainable
+        self.cond_stage_key = cond_stage_key
 
         
         
@@ -540,9 +542,63 @@ class LatentDiffusion(DDPM):
 
         encoder_posterior = self.encode_first_stage(x)
 
+        z = self.get_first_stage_encoding(encoder_posterior).detach()
+
+        if self.model.conditional_key is not None:
+            if cond_key is None:
+                cond_key = self.cond_stage_key
+
+            if cond_key != self.first_stage_key:
+                if cond_key in ['caption', 'coordination_bbox']:
+                    xc = batch[cond_key]
+
+                elif cond_key == 'class_label':
+                    xc = batch
+
+                else:
+                    xc = super().get_input(batch, cond_key).to(self.device)
+
+            else:
+                xc = x 
+
+            if not self.cond_stage_trainable or force_c_encode:
+                if isinstance(xc, dict) or isinstance(xc, list):
+                    c = self.get_learned_conditioning(xc)
+
+                else:
+                    c = self.get_learned_conditioning(xc.to(self.device))
+
+            else:
+                c = xc 
+
+            if bs is not None:
+                c = c[:bs]
+
+            if self.use_positional_encodings:
+                pos_x, pos_y = self.compute_latent_shift(batch)
+                ckey = __conditioning_keys__[self.model.conditional_key]
+                c = {ckey: c,
+                     'pos_x': pos_x,
+                     'pos_y': pos_y}
+                
+
+        else:
+            c = None 
+            xc = None 
+
+            if self.use_positional_encodings:
+                pos_x, pos_y = self.compute_latent_shift(batch)
+                c = {'pos_x': pos_x,
+                     'pos_y': pos_y}
+                
+        out = [z, c]
+        return out
+
 # --------------------------------------------
     @torch.no_grad()
     def encode_first_stage(self, x):
+
+        # print(f"check the data have split condition or not: >>>>>> {x}")
 
         if hasattr(self, "split_input_params"):
             print(f"is this working...")
@@ -585,10 +641,11 @@ class LatentDiffusion(DDPM):
                 return decoded
 
             else:
-
+                print("is this else condition are working...")
                 return self.first_stage_model.encode(x)
             
         else:
+            print("what is the condition are working...")
             return self.first_stage_model.encode(x)
         
 
@@ -720,7 +777,29 @@ class LatentDiffusion(DDPM):
 # ----------------------------------------------------------------------------------------------------------------
 
 
+    def get_first_stage_encoding(self, encoder_posterior):
 
+        # print(f"Let's know the encoder_posterior: {encoder_posterior}")
+
+        if isinstance(encoder_posterior, DiagonalGaussianDistribution):
+            z = encoder_posterior.sample()
+
+        elif isinstance(encoder_posterior, torch.Tensor):
+            z = encoder_posterior
+
+        elif isinstance(encoder_posterior, tuple):
+            z = encoder_posterior[0]
+
+
+
+        else:
+            raise NotImplementedError(f"encoder_posterior of type '{type(encoder_posterior)}' not yet implemented. ")
+        
+        return self.scale_factor * z 
+    
+
+
+        
 
                 
 
@@ -800,7 +879,7 @@ if __name__ == "__main__":
                             #  cond_stage_config=config['model']['params']['cond_stage_config'],
                             #  num_timesteps_cond=config['model']['params']['num_timesteps_cond'],
                              *config
-                             )
+                             ).half().cuda()
     
 
     from Diffusion.data.lsun import LSUNBedroomsTrain, LSUNBedroomsValidation
