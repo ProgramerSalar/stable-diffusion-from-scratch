@@ -275,7 +275,10 @@ class DDPM(nn.Module):
 
     def get_input(self, batch, k):
 
-        x = batch[k]
+        # print(f"check the Tensor of input Image: >>>>>>>>> {batch}")
+        # print(f"check the Tensor of input Image: >>>>>>>>> {k}")
+
+        x = batch['image']
         # print(f"what is the shape of image in [DDPM-class]: >>>>>> {x.shape}")
         
         if len(x.shape) == 3:
@@ -456,7 +459,8 @@ class LatentDiffusion(DDPM):
         super().__init__(conditioning_key=conditioning_key, 
                          *args,
                          **kwargs,
-                         unet_config=config['model']['params']['unet_config'])
+                        #  unet_config=config['model']['params']['unet_config']
+                         )
         
         self.concat_mode = concat_mode
         self.cond_stage_trainable = cond_stage_trainable
@@ -527,7 +531,7 @@ class LatentDiffusion(DDPM):
     def get_input(self,
                   batch,
                   k,
-                  return_first_stage_outputs=False,
+                  return_first_stage_outputs=True,
                   force_c_encode=False,
                   cond_key=None,
                   return_original_cond=False,
@@ -556,7 +560,7 @@ class LatentDiffusion(DDPM):
                     xc = batch
 
                 else:
-                    xc = super().get_input(batch, cond_key).to(self.device)
+                    xc = super().get_input(batch, cond_key).cuda()
 
             else:
                 xc = x 
@@ -566,7 +570,7 @@ class LatentDiffusion(DDPM):
                     c = self.get_learned_conditioning(xc)
 
                 else:
-                    c = self.get_learned_conditioning(xc.to(self.device))
+                    c = self.get_learned_conditioning(xc.cuda())
 
             else:
                 c = xc 
@@ -592,7 +596,23 @@ class LatentDiffusion(DDPM):
                      'pos_y': pos_y}
                 
         out = [z, c]
-        return out
+
+        if return_first_stage_outputs:
+            xrec = self.decode_first_stage(z)
+            
+
+
+    def decode_first_stage(self, z, predict_cids=False, force_out_quantize=False):
+        # print(f"data are comming in the decode function: >>>>> {z.shape}")
+
+
+        if 
+
+
+
+
+
+
 
 # --------------------------------------------
     @torch.no_grad()
@@ -837,18 +857,23 @@ class LatentDiffusion(DDPM):
 
 
     def get_learned_conditioning(self, c):
+        # print(f"can get the data: {c}")
         if self.cond_stage_forward is None:
             if hasattr(self.cond_stage_model, 'encode') and callable(self.cond_stage_model.encode):
+                # print('is this working....')
                 c = self.cond_stage_model.encode(c)
 
                 if isinstance(c, DiagonalGaussianDistribution):
                     c = c.mode()
 
             else:
+                # print(f"what is the input i get : >>>>>>> {c.shape}")
+                # print(f"what is the input i get : >>>>>>> {c.dtype}")
                 c = self.cond_stage_model(c)
 
 
         else:
+            # print("this else condition are working...")
             assert hasattr(self.cond_stage_model, self.cond_stage_forward)
             c = getattr(self.cond_stage_model, self.cond_stage_forward)(c)
 
@@ -870,16 +895,11 @@ if __name__ == "__main__":
     
 
         
+    model_params = config['model']['params']
 
 
 
-
-    model = LatentDiffusion(
-                            # first_stage_config=config['model']['params']['first_stage_config'],
-                            #  cond_stage_config=config['model']['params']['cond_stage_config'],
-                            #  num_timesteps_cond=config['model']['params']['num_timesteps_cond'],
-                             *config
-                             ).half().cuda()
+    model = LatentDiffusion(**model_params).half().cuda()
     
 
     from Diffusion.data.lsun import LSUNBedroomsTrain, LSUNBedroomsValidation

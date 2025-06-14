@@ -38,7 +38,11 @@ class LSUNBase(Dataset):
                               "bicubic": PIL.Image.BICUBIC,
                               "lanczos": PIL.Image.LANCZOS}[interpolation]
         
+
+        
         self.flip = transforms.RandomHorizontalFlip(p=flip_p)
+        
+
 
 
 
@@ -67,6 +71,7 @@ class LSUNBase(Dataset):
         if self.size is not None:
             image = image.resize((self.size, self.size), resample=self.interpolation)
 
+        
         image = self.flip(image)
         image = np.array(image).astype(np.uint8)
 
