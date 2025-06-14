@@ -158,6 +158,24 @@ class DDPM(nn.Module):
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys, only_model=load_only_unet)
 
 
+        self.register_schedule(given_betas=given_betas,
+                               beta_schedule=beta_schedule,
+                               timestep=timesteps,
+                               linear_start=linear_start,
+                               linear_end=linear_end,
+                               cosine_s=cosine_s)
+        
+        self.loss_type = loss_type
+
+        self.learn_logvar = learn_logvar
+        self.logvar = torch.full(fill_value=logvar_init, size=(self.num_timesteps,))
+
+        if self.learn_logvar:
+            self.logvar = nn.Parameter(self.logvar, requires_grad=True)
+
+
+
+
         
     def init_from_ckpt(self):
         pass 
@@ -167,7 +185,7 @@ class DDPM(nn.Module):
     def register_schedule(self, 
                           given_betas=None,
                           beta_schedule="linear",
-                          timestep=1000,
+                          timesteps=1000,
                           linear_start=1e-4,
                           linear_end=2e-2,
                           cosine_s=8e-3):
@@ -178,7 +196,7 @@ class DDPM(nn.Module):
 
         else:
             betas = make_beta_schedule(schedule=beta_schedule,
-                                       n_timestep=timestep,
+                                       n_timestep=timesteps,
                                        linear_start=linear_start,
                                        linear_end=linear_end,
                                        cosine_s=cosine_s)
@@ -188,7 +206,7 @@ class DDPM(nn.Module):
         alphas_cumprod = np.cumprod(alphas, axis=0)
         alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])
 
-        timesteps = betas.shape 
+        timesteps = betas.shape[0]
         self.num_timesteps = int(timesteps)
         self.linear_start = linear_start
         self.linear_end = linear_end
@@ -225,12 +243,12 @@ class DDPM(nn.Module):
         ))
 
         if self.parameterization == "eps":
-            lvlb_weight = self.betas ** 2 / (
+            lvlb_weights = self.betas ** 2 / (
                 2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod)
             )
 
         elif self.parameterization == "x0":
-            lvlb_weight = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2. * 1 - torch.Tensor(alphas_cumprod))
+            lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2. * 1 - torch.Tensor(alphas_cumprod))
 
         else:
             raise NotImplementedError("mu not supported")
@@ -238,8 +256,8 @@ class DDPM(nn.Module):
 
         # TODO: how to choose this term 
 
-        lvlb_weight[0] = lvlb_weight[1]
-        self.register_buffer('lvlb_weights', lvlb_weight, persistent=False)
+        lvlb_weights[0] = lvlb_weights[1]
+        self.register_buffer('lvlb_weights', lvlb_weights, persistent=False)
 
         assert not torch.isnan(self.lvlb_weights).all()
 
@@ -526,12 +544,30 @@ class LatentDiffusion(DDPM):
             self.cond_stage_model = model
 
 
+    def register_schedule(self, given_betas=None, beta_schedule="linear", timestep=1000, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
+        super().register_schedule(given_betas, beta_schedule, timestep, linear_start, linear_end, cosine_s)
+    
+        self.shorten_cond_schedule = self.num_timesteps_cond > 1 
+        if self.shorten_cond_schedule:
+            self.make_cond_schedule()
+
+
+    def make_cond_schedule(self, ):
+        self.cond_ids = torch.full(size=(self.num_timesteps, ), fill_value=self.num_timesteps -1, dtype=torch.long)
+        ids = torch.round(torch.linspace(0, self.num_timesteps -1, self.num_timesteps_cond)).long()
+        self.cond_ids[:self.num_timesteps_cond] = ids 
+
+
+    
+
+
+
 
     @torch.no_grad()
     def get_input(self,
                   batch,
                   k,
-                  return_first_stage_outputs=True,
+                  return_first_stage_outputs=False,
                   force_c_encode=False,
                   cond_key=None,
                   return_original_cond=False,
@@ -599,14 +635,111 @@ class LatentDiffusion(DDPM):
 
         if return_first_stage_outputs:
             xrec = self.decode_first_stage(z)
+            out.extend([x, xrec])
+
+        if return_original_cond:
+            out.append(xc)
+
+        return out 
             
 
 
-    def decode_first_stage(self, z, predict_cids=False, force_out_quantize=False):
+    def decode_first_stage(self, z, predict_cids=False, force_not_quantize=False):
         # print(f"data are comming in the decode function: >>>>> {z.shape}")
 
 
-        if 
+        # if prediction codebook indices, convert z to codebook entries 
+        if predict_cids:
+            if z.dim() == 4:
+                # convert one-hot to indices 
+                z = torch.argmax(z.exp(), dim=1).long()
+
+            # Get codebook entry 
+            z = self.first_stage_model.quantize.get_codebook_entry(z, shape=None)
+
+            # Rearrange tensor dimensions 
+            z = rearrange(z, 'b h w c -> b c h w').contiguous()
+
+        # scale latent vector by inverse scale factor 
+        z = 1. / self.scale_factor * 2 
+
+        # check if using patch-based processing 
+        if hasattr(self, 'split_input_params'):
+
+            if self.split_input_params['patch_distributed_vq']:
+                # Get kernel size, stride and upscale factor 
+                ks = self.split_input_params["ks"]
+                stride = self.split_input_params["stride"]
+                uf = self.split_input_params["vqf"]
+
+                bs, nc, h, w = z.shape 
+
+                # Adjust kernel size if too large 
+                if ks[0] > h or ks[1] > w:
+                    ks = (min(ks[0], h), min(stride[1], w))
+
+
+                # Get folding/unfolding operations 
+                fold, unfold, normalization, weighting = self.get_fold_unfold(z, ks, stride, uf=uf)
+
+                # unfold input into patches 
+                z = unfold(z)
+
+                # Reshape to (batch, channels, kernel_h, kernel_w, num_patches)
+                z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1]))
+
+                # Decode each patch 
+                if isinstance(self.first_stage_model, VQModelInterface):
+                    output_list = [self.first_stage_model.decode(z[:, :, :, :, i],
+                                                                 force_not_quantize=predict_cids or force_not_quantize)
+                                                                 for i in range(z.shape[-1])
+                                                                 ]
+                    
+
+                else:
+                    output_list = [self.first_stage_model.decode(z[:, :, :, :, i])
+                                   for i in range(z.shape[-1])]
+                    
+
+                # stack outputs and apply weighting 
+                o = torch.stack(output_list, axis=-1)
+                o = o * weighting
+
+                # Reshape back to unfolded form 
+                o = o.view((o.shape[0], -1, o.shape[-1]))
+
+                # fold patches back into full image 
+                decoded = fold(o)
+
+                # normalize by overlap count 
+                decoded = decoded / normalization
+
+            else:
+
+                # non-patch-based decoding 
+                if isinstance(self.first_stage_model, VQModelInterface):
+                    return self.first_stage_model.decode(z, force_not_quantize=predict_cids or force_not_quantize)
+                
+                else:
+                    return self.first_stage_model.decode(z)
+                
+
+        else:
+
+            # standard decoding path 
+            if isinstance(self.first_stage_model, VQModelInterface):
+                return self.first_stage_model.decode(z, force_not_quantize=predict_cids or force_not_quantize)
+            
+            else:
+                return self.first_stage_model.decode(z)
+            
+
+
+            
+
+
+
+
 
 
 
@@ -852,7 +985,11 @@ class LatentDiffusion(DDPM):
             if self.cond_stage_trainable:
                 c = self.get_learned_conditioning(c)
 
-        return self.p_loss()
+            if self.shorten_cond_schedule:  # TODO: drop this option 
+                tc = self.cond_ids[t].cuda()
+                c = self.q_sample(x_start=c, t=tc, noise=torch.randn_like(c.float()))
+
+        return self.p_losses(x, c, t, *args, **kwargs)
 
 
 
@@ -879,8 +1016,232 @@ class LatentDiffusion(DDPM):
 
         return c 
     
+# ----------------------------------------------------------------------------
+
+    def p_losses(self, x_start, cond, t, noise=None):
+
+        # Generate noise if not provided 
+        noise = default(noise, lambda: torch.randn_like(x_start))
+        
+        # Create noisy sample at timestep t 
+        x_noisey = self.q_sample(x_start=x_start, t=t, noise=noise)
+
+        # Apply denosing model to noisy input
+        model_output = self.apply_model(x_noisey, t, cond)
+
+        # Initialize loss dictionary 
+        loss_dict = {}
+
+        # set prefix for logging (train/val)
+        prefix = 'train' if self.training else 'val'
+
+        # Determine target based on parameterization 
+        if self.parameterization == "x0":
+            target = x_start    # Predict original input 
+
+        elif self.parameterization == "eps":
+            target = noise  # predict noise 
+
+        else:
+            raise NotImplementedError()
+        
+
+        # calculate sample loss (per-element)
+        loss_simple = self.get_loss(pred=model_output,
+                                    target=target,
+                                    main=False).mean([1, 2, 3])
+        
+        # store mean simple loss 
+        loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
+
+        # Get log variance for current timestep 
+        logvar_t = self.logvar[t].cuda()
+
+        # compute gamma-weighted loss (for learnable variance)
+        loss = loss_simple / torch.exp(logvar_t) + logvar_t
+
+        # Handle learnable log variance 
+        if self.learn_logvar:
+            loss_dict.update({f'{prefix}/loss_gamma': loss.mean()})
+            loss_dict.update({'logvar': self.logvar.data.mean()})
+
+        # Apply weight to simple loss component 
+        loss = self.l_simple_weight * loss.mean()
+
+        # calculate variational lower bound loss 
+        loss_vlb = self.get_loss(model_output, target, mean=False).mean(dim=(1, 2, 3))
+
+        # weighting VLB by timestep weights 
+        loss_vlb = (self.lvlb_weights[t] * loss_vlb).mean()
+
+        # store VLB loss 
+        loss_dict.update({f'{prefix}/loss_vlb': loss_vlb})
+
+        # Add weighted VLB to total loss 
+        loss += (self.original_elbo_weight * loss_vlb)
+
+        # store total loss 
+        loss_dict.update({f'{prefix}/loss': loss})
 
 
+        return loss, loss_dict
+
+
+
+    def apply_model(self, x_noisy, t, cond, return_ids=False):
+
+        # Handle conditioning input (convert to dictionary format if needed)
+        if isinstance(cond, dict):
+            
+            # hybrid case: cond is already in expected dict format 
+            pass 
+
+        else:
+
+            # wrap single conditioning in list 
+            if not isinstance(cond, list):
+                cond = [cond]
+
+            # Determine conditioning key based on model type 
+            key = 'c_concat' if self.model.conditional_key == 'concat' else 'c_crossattn'
+            # format as dictionary with proper key 
+            cond = {key: cond}
+
+
+        # check for patch-based processing (for large images)
+        if hasattr(self, 'split_input_params'):
+            
+            # currently only supports one conditioning type 
+            assert len(cond) == 1 
+
+            # Not implemented for return_ids 
+            assert not return_ids
+
+            # Get patch parameters 
+            ks = self.split_input_params["ks"]  # kernel size (patch_size)
+            stride = self.split_input_params["stride"]  # stride for sliding window
+
+            # current spatial dimensions 
+            h, w = x_noisy.shape[-2:]
+
+            # parepare folding/unfoling operations 
+            fold, unfold, normalization, weighting = self.get_fold_unfold(x_noisy, ks, stride)
+
+            # unfold input into patches 
+            z = unfold(x_noisy)     # (batch_size, channels*ks_h*ks_w, num_patches)
+
+            # Reshape to: (batch_size, channels, ks_h, ks_w, num_patches)
+            z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1]))
+
+            # split into list of individual patches 
+            z_list = [z[:, :, :, :, i] for i in range(z.shape[-1])]
+
+            # Handle different conditioning types for patches 
+            if self.cond_stage_key in ["image", "LR_image", "segmentation", "bbox_img"]:
+
+                # Get conditioning key 
+                c_key = next(iter(cond.keys()))
+                # Get conditioning values 
+                c = next(iter(cond.values()))
+
+                # unfold conditioning similarly 
+                c = unfold(c)
+                c = c.view((c.shape[0], -1, ks[0], ks[1], c.shape[-1]))  # [batch_size, channels, ks_h, ks_w, num_patches]
+
+                # Create seperate conditioning dict for each patch
+                cond_list = [{c_key: [c[:, :, :, :, i]]} for i in range(c.shape[-1])]
+
+
+            elif self.cond_stage_key == 'coordinates_bbox':
+
+                assert 'original_image_size' in self.split_input_params, 'BoundingBoxRescaling is missing original_image_size'
+
+                # assuming padding of unfold is always 0 and its dilation is always 1 
+                n_patches_per_row = int((w - ks[0]) / stride[0] + 1)
+                full_img_h, full_img_w = self.split_input_params['original_image_size']
+
+                # As we are operating on latent, we need the factor from the original image size to the 
+                # spatial latent size to properly rescale the crops for regenerating the bbox annotations
+
+                num_downs = self.first_stage_model.encoder.num_resolutions - 1 
+                rescale_latent = 2 ** (num_downs)
+
+                # Get top left position of patches as conforming for the bbox tokenizer, therefore we
+                # need to rescale the t1 patch cooridinates to be in between (0, 1)
+
+                t1_patch_coordinates = [(rescale_latent * stride[0] * (patch_nr % n_patches_per_row) / full_img_w,
+                                         rescale_latent * stride[1] * (patch_nr  // n_patches_per_row) / full_img_h)
+                                         for patch_nr in range(z.shape[-1])]
+                
+
+                # patch_limits are t1_cooridinates, width and height coordinates as (x_t1, y_t1, h, w)
+                patch_limits = [(x_t1, y_t1,
+                                 rescale_latent * ks[0] / full_img_w,
+                                 rescale_latent * ks[1] / full_img_h) for x_t1, y_t1 in t1_patch_coordinates]
+                
+
+                # tokenize crop coordinates for the bounding boxes of the respective patches 
+                patch_limits_tknd = [torch.LongTensor(self.bbox_tokenizer._crop_encoder(bbox))[None].cuda()
+                                     for bbox in patch_limits]  # list of length 1 with tensors of shape (1, 2)
+                
+                print(f"what is the shape of patch_limit_tokenizer number of dim: >>>> {patch_limits_tknd[0].shape}")
+
+                # cut tokenizer crop position from conditionng 
+                assert isinstance(cond, dict), "cond must be dict to be fed into model"
+                cut_cond = cond["c_crossattn"][0][..., :-2].cuda()
+                
+                print(f"what is the shape of cut_cond: >>>>>>>>> {cut_cond.shape}")
+
+
+                adapted_cond = torch.stack([torch.cat([cut_cond, p], dim=1) for p in patch_limits_tknd])
+                adapted_cond = rearrange(adapted_cond, 'l b n -> (l b) n')
+
+                print(f"what is the shape of Adaptive condition: >>>>>>> {adapted_cond.shape}")
+
+                adapted_cond = self.get_learned_conditioning(adapted_cond)
+                print(f"what is the shape of Adaptive condition [After applying get_learned_condition class]: >>>>>>> {adapted_cond.shape}")
+
+                adapted_cond = rearrange(adapted_cond, '(l b) n d -> l b n d', l=z.shape[-1])
+                print(f"what is the shape of Adaptive condition [After rearring the shape]: >>>>>>> {adapted_cond.shape}")
+
+                cond_list = [{'c_crossattn': [e]} for e in adapted_cond]
+
+
+            else:
+
+                # Duplicate same conditioning for all patches 
+                cond_list = [cond for i in range(z.shape[-1])]  # TODO: make this more efficient 
+                      
+
+            # Apply model to each patch independently 
+            output_list = [self.model(z_list[i], t, **cond_list[i]) for i in range(z.shape[-1])]
+
+            # stack outputs while preserving gradients 
+            o = torch.stack(output_list, axis=-1)
+            # Apply weighting for overlapping regions 
+            o = o * weighting
+            # Reshape back to unfolded format 
+            o = o.view((o.shape[0], -1, o.shape[-1]))
+
+            # Fold patches back into complete feature map 
+            x_recon = fold(o) / normalization   # normalize by overlap count 
+
+
+        else:
+            
+            # Standard full-image processing 
+            x_recon = self.model(x_noisy, t, **cond)
+
+        # Handle different return type 
+        if isinstance(x_recon, tuple) and not return_ids:
+            return x_recon[0]   # Return only main output
+        
+        else:
+            return x_recon  # Return full outputs
+
+
+
+        
     
     
 
