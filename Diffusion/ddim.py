@@ -4,7 +4,7 @@ import torch
 import numpy as np 
 from tqdm import tqdm
 from functools import partial
-from Diffusion.utils import make_ddim_timesteps, make_ddim_sampling_parameters, noise_like, extact_into_tensor
+from Diffusion.utils import make_ddim_timesteps, make_ddim_sampling_parameters, noise_like, extract_into_tensor
 
 
 
@@ -320,8 +320,8 @@ class DDIMSampler(object):
         if noise is None:
             noise = torch.rand_like(x0)
 
-        return (extact_into_tensor(sqrt_alphas_cumprod, t, x0.shape) * x0 + 
-                extact_into_tensor(sqrt_alphas_cumprod, t, x0.shape) * noise)
+        return (extract_into_tensor(sqrt_alphas_cumprod, t, x0.shape) * x0 + 
+                extract_into_tensor(sqrt_alphas_cumprod, t, x0.shape) * noise)
     
 
     
