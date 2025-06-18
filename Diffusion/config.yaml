@@ -1,47 +1,56 @@
 model:
-  base_learning_rate: 2.0e-06
+  base_learning_rate: 1.0e-04
   target: Diffusion.ddpm.LatentDiffusion
   params:
-    linear_start: 0.0015
-    linear_end: 0.0195
+    linear_start: 0.00085
+    linear_end: 0.0120
     num_timesteps_cond: 1
     log_every_t: 200
     timesteps: 1000
-    first_stage_key: image
+    first_stage_key: "jpg"
+    cond_stage_key: "txt"
     image_size: 64
-    channels: 3
+    channels: 4
+    cond_stage_trainable: false   # Note: different from the one we trained before
+    conditioning_key: crossattn
     monitor: val/loss_simple_ema
+    scale_factor: 0.18215
+    use_ema: False
+
+    scheduler_config: # 10000 warmup steps
+      target: Diffusion.lr_scheduler.LambdaLinearScheduler
+      params:
+        warm_up_steps: [ 10000 ]
+        cycle_lengths: [ 10000000000000 ] # incredibly large number to prevent corner cases
+        f_start: [ 1.e-6 ]
+        f_max: [ 1. ]
+        f_min: [ 1. ]
+
     unet_config:
       target: openai_model.model.UNetModel
       params:
-        image_size: 64
-        in_channels: 3
-        out_channels: 3
-        model_channels: 224
-        attention_resolutions:
-        # note: this isn\t actually the resolution but
-        # the downsampling factor, i.e. this corresnponds to
-        # attention on spatial resolution 8,16,32, as the
-        # spatial reolution of the latents is 64 for f4
-        - 8
-        - 4
-        - 2
+        image_size: 32 # unused
+        in_channels: 4
+        out_channels: 4
+        model_channels: 320
+        attention_resolutions: [ 4, 2, 1 ]
         num_res_blocks: 2
-        channel_mult:
-        - 1
-        - 2
-        - 3
-        - 4
-        num_head_channels: 32
+        channel_mult: [ 1, 2, 4, 4 ]
+        num_heads: 8
+        use_spatial_transformer: True
+        transformer_depth: 1
+        context_dim: 768
+        use_checkpoint: True
+        legacy: False
+
     first_stage_config:
-      target: vqvae.autoencoder.VQModelInterface
+      target: VAE.autoencoder.AutoEncoderKL
       params:
-        ckpt_path: vqvae/vq-f4/model_fp16.ckpt
-        embed_dim: 3
-        n_embed: 8192
+        embed_dim: 4
+        monitor: val/rec_loss
         ddconfig:
-          double_z: false
-          z_channels: 3
+          double_z: true
+          z_channels: 4
           resolution: 256
           in_channels: 3
           out_ch: 3
@@ -50,36 +59,12 @@ model:
           - 1
           - 2
           - 4
+          - 4
           num_res_blocks: 2
           attn_resolutions: []
           dropout: 0.0
         lossconfig:
           target: torch.nn.Identity
-    cond_stage_config: __is_unconditional__
-data:
-  target: main.DataModuleFromConfig
-  params:
-    batch_size: 48
-    num_workers: 5
-    wrap: false
-    train:
-      target: Diffusion.data.lsun.LSUNBedroomsTrain
-      params:
-        size: 256
-    validation:
-      target: Diffusion.data.lsun.LSUNBedroomsValidation
-      params:
-        size: 256
 
-
-lightning:
-  callbacks:
-    image_logger:
-      target: main.ImageLogger
-      params:
-        batch_frequency: 5000
-        max_images: 8
-        increase_log_steps: False
-
-  trainer:
-    benchmark: True
+    cond_stage_config:
+      target: clip.clip.FrozenCLIPEmbedder

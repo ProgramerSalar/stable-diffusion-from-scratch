@@ -222,8 +222,8 @@ def count_params(model, verbose=False):
 
 def instantiate_from_config(config):
 
-    print(f"check the co config: {config}")
-    print(f"check the co config: >>>>>>>> {config['target']}")
+    # print(f"check the co config: {config}")
+    # print(f"check the co config: >>>>>>>> {config['target']}")
 
     # if not "target" in config:
     #     if config == "__is_first_stage__":
@@ -241,6 +241,8 @@ def instantiate_from_config(config):
 
 
 def get_obj_from_str(string, reload=False):
+
+    # print(f"what is th data get: >>> {string}")
     
     module, cls = string.rsplit(".", 1)
     if reload:
