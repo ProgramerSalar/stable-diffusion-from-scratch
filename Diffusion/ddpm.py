@@ -577,7 +577,7 @@ class LatentDiffusion(DDPM):
         
         
         
-        num_timesteps_cond = config['model']['params']['num_timesteps_cond']
+        num_timesteps_cond = 1
         # first_stage_config = config['model']['params']['first_stage_config']
         self.num_timesteps_cond = default(num_timesteps_cond, 1)
         self.scale_by_std = scale_by_std
