@@ -619,8 +619,9 @@ class LatentDiffusion(DDPM):
         else:
             self.register_buffer('scale_factor', torch.tensor(scale_factor))
 
-        first_stage_config = config['model']['params']['first_stage_config']
-        cond_stage_config = config['model']['params']['cond_stage_config']
+        # first_stage_config = config['first_stage_config']
+        # cond_stage_config = config['cond_stage_config']
+        # print(f"first stage config >>>>>>>>>>>>>>>>>>>> {first_stage_config}")
 
         self.instantiate_first_stage(first_stage_config)
         self.instantiate_cond_stage(cond_stage_config)

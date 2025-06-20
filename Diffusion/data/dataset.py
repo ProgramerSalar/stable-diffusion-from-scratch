@@ -5,6 +5,8 @@ import numpy as np
 from Diffusion.data.base import Txt2ImgIterableBaseDataset
 from torch.utils.data import DataLoader, Dataset
 from Diffusion.utils import instantiate_from_config
+import pytorch_lightning as pl
+
 
 def worker_init_fn(_):
 
@@ -55,7 +57,7 @@ class WrappedDataset(Dataset):
 
 
 
-class DataModuleFromConfig(nn.Module):
+class DataModuleFromConfig(pl.LightningDataModule):
 
     def __init__(self,
                  batch_size,
@@ -210,22 +212,23 @@ class DataModuleFromConfig(nn.Module):
 
 
 if __name__ == "__main__":
+    pass
 
-    from Diffusion.data.lsun import LSUNBedroomsTrain, LSUNBedroomsValidation
+    # from Diffusion.data.lsun import LSUNBedroomsTrain, LSUNBedroomsValidation
 
-    train_config = {
-        "target": "Diffusion.data.lsun.LSUNBedroomsTrain"
-    }
+    # train_config = {
+    #     "target": "Diffusion.data.lsun.LSUNBedroomsTrain"
+    # }
 
-    datasets = LSUNBedroomsTrain()
+    # datasets = LSUNBedroomsTrain()
 
-    data_moduler = DataModuleFromConfig(batch_size=32,
-                                   train=train_config,
-                                   num_workers=4,
-                                   use_worker_init_fn=True,
-                                   )
+    # data_moduler = DataModuleFromConfig(batch_size=32,
+    #                                train=train_config,
+    #                                num_workers=4,
+    #                                use_worker_init_fn=True,
+    #                                )
 
-    data_loader = data_moduler.train_dataloader()
+    # data_loader = data_moduler.train_dataloader()
   
-    for batch in data_loader:
-        print(f"check the shape of image: {batch['image'].shape}")
+    # for batch in data_loader:
+    #     print(f"check the shape of image: {batch['image'].shape}")
