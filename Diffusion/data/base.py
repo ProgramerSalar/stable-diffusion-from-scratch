@@ -69,7 +69,7 @@ class ImagePaths(Dataset):
 
 
     def __len__(self):
-        return self.__length 
+        return self._length 
     
 
     def preprocess_image(self, image_path):
@@ -85,7 +85,7 @@ class ImagePaths(Dataset):
         return image 
     
 
-    def __getitem(self, i):
+    def __getitem__(self, i):
         example = dict()
         example["image"] = self.preprocess_image(self.labels["file_path_"][i])
 

@@ -34,7 +34,74 @@ if __name__ == "__main__":
 
     # print(f"model: >>>> {model}")
 
-    data_module_from_config = DataModuleFromConfig(batch_size=)
+    from Diffusion.data.imagenet import ImageNetTrain, ImageNetValidation
+
+    # Example configuration
+    config = {
+        "size": 256,          # Resize images to 256x256
+        "random_crop": True,  # Use random cropping for training
+    }
+
+    train_dataset = ImageNetTrain(
+        process_images=True,
+        data_root="data/",   # Path to dataset root
+        config=config
+    )
+
+    val_dataset = ImageNetValidation(
+        process_images=True,
+        data_root="data/",
+        config=config
+    )
+
+    from torch.utils.data import DataLoader
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=32,
+        shuffle=True,
+        num_workers=8,
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=32,
+        num_workers=8,
+    )
+
+    import pytorch_lightning as pl
+
+    class LatentDiffusionTrainer(pl.LightningModule):
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+
+        def training_step(self, batch, batch_idx):
+            loss, loss_dict = self.model.shared_step(batch)
+            self.log_dict(loss_dict, prog_bar=True, logger=True)
+            return loss
+
+        def validation_step(self, batch, batch_idx):
+            _, loss_dict = self.model.shared_step(batch)
+            self.log_dict(loss_dict, prog_bar=False, logger=True)
+
+        def configure_optimizers(self):
+            return model.configure_optimizers()  # Uses AdamW with LR scheduler
+
+    # Initialize trainer
+    trainer = pl.Trainer(
+        max_epochs=100,                       
+        strategy="ddp",                   # Distributed training
+        precision=16,                    # Mixed precision
+        log_every_n_steps=100,
+    )
+
+    # Start training
+    trainer.fit(
+        LatentDiffusionTrainer(model),
+        train_dataloaders=train_loader,
+        val_dataloaders=val_loader,
+    )
 
 
 
