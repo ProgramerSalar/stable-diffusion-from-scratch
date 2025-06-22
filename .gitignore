@@ -1,2 +1,9 @@
 **/__pycache__/
 Unet/__pycache__/
+Encoder_Decoder/__pycache__/
+lightning_logs/
+diffusion_pytorch_model.fp16.safetensors
+VAE/models/
+vqvae/vq-f4/
+Diffusion/bedroom/
+data/
