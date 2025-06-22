@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     # print(f"model: >>>> {model}")
 
-    from Diffusion.data.imagenet import ImageNetTrain, ImageNetValidation
+    from Diffusion.data.imagenet import ImageNetTrain, ImageNetValidation, ImageNetSRTrain, ImageNetSRValidation
 
     # Example configuration
     config = {
@@ -42,16 +42,12 @@ if __name__ == "__main__":
         "random_crop": True,  # Use random cropping for training
     }
 
-    train_dataset = ImageNetTrain(
-        process_images=True,
-        data_root="data/",   # Path to dataset root
-        config=config
+    train_dataset = ImageNetSRTrain(
+        size=256
     )
 
-    val_dataset = ImageNetValidation(
-        process_images=True,
-        data_root="data/",
-        config=config
+    val_dataset = ImageNetSRValidation(
+        size=256
     )
 
     from torch.utils.data import DataLoader

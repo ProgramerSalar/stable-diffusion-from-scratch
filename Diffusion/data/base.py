@@ -79,7 +79,7 @@ class ImagePaths(Dataset):
             image = image.convert("RGB")
 
         image = np.array(image).astype(np.uint8)
-        image = self.preprocessor(image)["image"]
+        image = self.preprocessor(image=image)["image"]
         image = (image/127.5 - 1.0).astype(np.float32)
 
         return image 

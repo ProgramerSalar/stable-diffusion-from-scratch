@@ -2007,11 +2007,11 @@ if __name__ == "__main__":
     model = LatentDiffusion(**model_params).half().cuda()
     
 
-    from Diffusion.data.lsun import LSUNBedroomsTrain, LSUNBedroomsValidation
+    
     from Diffusion.data.dataset import DataModuleFromConfig
     
     
-    datasets = LSUNBedroomsTrain()
+    
 
     data_moduler = DataModuleFromConfig(batch_size=32,
                                    train=config['data']['params']['train'],
@@ -2055,6 +2055,9 @@ if __name__ == "__main__":
                 "clip_min_weight": 0.01,
                 "clip_max_weight": 1.0
             }
+
+
+    
 
 
 
