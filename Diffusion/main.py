@@ -54,15 +54,15 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=32,
+        batch_size=4,
         shuffle=True,
-        num_workers=8,
+        num_workers=4,
     )
 
     val_loader = DataLoader(
         val_dataset,
-        batch_size=32,
-        num_workers=8,
+        batch_size=4,
+        num_workers=4,
     )
 
     import pytorch_lightning as pl

@@ -21,6 +21,10 @@ def Normalize(in_channels,
 
 
 def nonlinearity(x):
+    x = x.to(torch.float16)
+    print(f"what is the dtype of input data: >>>>>>> {x.dtype}")
+    
+
     return x * torch.sigmoid(x)
 
 
