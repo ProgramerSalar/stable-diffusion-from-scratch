@@ -28,7 +28,7 @@ from Diffusion.data.base import ImagePaths
 from tqdm import tqdm
 
 
-def synset2idx(path_to_yaml="data/index_synset.yaml"):
+def synset2idx(path_to_yaml="Imagenet_data/index_synset.yaml"):
     with open(path_to_yaml) as f:
         di2s = yaml.load(f)
 
@@ -147,70 +147,6 @@ class ImageNetBase(Dataset):
 
         
 
-class ImageNetTrain(ImageNetBase):
-    NAME = "ILSVRC2012_train"
-    URL = "http://www.image-net.org/challenges/LSVRC/2012/"
-    AT_HASH = "a306397ccf9c2ead27155983c254227c0fd938e2"
-    FILES = [
-        "ILSVRC2012_img_train.tar",
-    ]
-    SIZES = [
-        147897477120,
-    ]
-
-    def __init__(self, process_images=True, data_root=None, **kwargs):
-        self.process_images = process_images
-        self.data_root = data_root
-        super().__init__(**kwargs)
-
-    def _prepare(self):
-       
-        # Determine root directory (custom or default cache location)
-        if self.data_root:
-            self.root = os.path.join(self.data_root, self.NAME)
-            print(f"data root: {self.root}")
-
-        else:
-            print("directory not found")
-
-        # set paths for data and file list 
-        self.datadir = os.path.join(self.root, "data")
-        print(f"datadir are found: {self.datadir} ")
-
-        self.txt_filelist = os.path.join(self.root, "filelist.txt")
-        print(f"is file list are found: {self.txt_filelist}")
-
-        self.expected_length = 1281167
-        self.random_crop = retrieve(self.config,
-                                    "ImageNetTrain/random_crop",
-                                    default=True)
-        
-
-        # if not is_prepared(self.root):
-
-        #     print("Root file does not exists.")
-        #     raise FileNotFoundError
-
-        
-        print("else condition are working...")
-        filelist = glob.glob(os.path.join(self.datadir, "**", "*.JPEG"))
-        # print(f"Image are found: {filelist}")
-        filelist = [os.path.relpath(p, start=self.datadir) for p in filelist]
-        # print(f"Image are found: {filelist}")
-        filelist = sorted(filelist)
-        filelist = "\n".join(filelist)+"\n"
-        # print(f"Image are found: {filelist}")
-
-        # with open(self.txt_filelist, 'r') as f:
-        #     f.read(filelist)
-
-        # print(f"Image are found: {filelist}")
-
-        # Mark preparation complete
-        mark_prepared(self.root)
-        
-        
-        
 # class ImageNetTrain(ImageNetBase):
 #     NAME = "ILSVRC2012_train"
 #     URL = "http://www.image-net.org/challenges/LSVRC/2012/"
@@ -228,50 +164,114 @@ class ImageNetTrain(ImageNetBase):
 #         super().__init__(**kwargs)
 
 #     def _prepare(self):
+       
+#         # Determine root directory (custom or default cache location)
 #         if self.data_root:
 #             self.root = os.path.join(self.data_root, self.NAME)
+#             print(f"data root: {self.root}")
+
 #         else:
-#             cachedir = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
-#             self.root = os.path.join(cachedir, "autoencoders/data", self.NAME)
+#             print("directory not found")
 
+#         # set paths for data and file list 
 #         self.datadir = os.path.join(self.root, "data")
+#         print(f"datadir are found: {self.datadir} ")
+
 #         self.txt_filelist = os.path.join(self.root, "filelist.txt")
+#         print(f"is file list are found: {self.txt_filelist}")
+
 #         self.expected_length = 1281167
-#         self.random_crop = retrieve(self.config, "ImageNetTrain/random_crop",
+#         self.random_crop = retrieve(self.config,
+#                                     "ImageNetTrain/random_crop",
 #                                     default=True)
-#         if not is_prepared(self.root):
-#             # prep
-#             print("Preparing dataset {} in {}".format(self.NAME, self.root))
+        
 
-#             datadir = self.datadir
-#             if not os.path.exists(datadir):
-#                 path = os.path.join(self.root, self.FILES[0])
-#                 if not os.path.exists(path) or not os.path.getsize(path)==self.SIZES[0]:
-#                     import academictorrents as at
-#                     atpath = at.get(self.AT_HASH, datastore=self.root)
-#                     assert atpath == path
+#         # if not is_prepared(self.root):
 
-#                 print("Extracting {} to {}".format(path, datadir))
-#                 os.makedirs(datadir, exist_ok=True)
-#                 with tarfile.open(path, "r:") as tar:
-#                     tar.extractall(path=datadir)
+#         #     print("Root file does not exists.")
+#         #     raise FileNotFoundError
 
-#                 print("Extracting sub-tars.")
-#                 subpaths = sorted(glob.glob(os.path.join(datadir, "*.tar")))
-#                 for subpath in tqdm(subpaths):
-#                     subdir = subpath[:-len(".tar")]
-#                     os.makedirs(subdir, exist_ok=True)
-#                     with tarfile.open(subpath, "r:") as tar:
-#                         tar.extractall(path=subdir)
+        
+#         print("else condition are working...")
+#         filelist = glob.glob(os.path.join(self.datadir, "**", "*.JPEG"))
+#         # print(f"Image are found: {filelist}")
+#         filelist = [os.path.relpath(p, start=self.datadir) for p in filelist]
+#         # print(f"Image are found: {filelist}")
+#         filelist = sorted(filelist)
+#         filelist = "\n".join(filelist)+"\n"
+#         # print(f"Image are found: {filelist}")
 
-#             filelist = glob.glob(os.path.join(datadir, "**", "*.JPEG"))
-#             filelist = [os.path.relpath(p, start=datadir) for p in filelist]
-#             filelist = sorted(filelist)
-#             filelist = "\n".join(filelist)+"\n"
-#             with open(self.txt_filelist, "w") as f:
-#                 f.write(filelist)
+#         # with open(self.txt_filelist, 'r') as f:
+#         #     f.read(filelist)
 
-#             mark_prepared(self.root)
+#         # print(f"Image are found: {filelist}")
+
+#         # Mark preparation complete
+#         mark_prepared(self.root)
+        
+        
+        
+class ImageNetTrain(ImageNetBase):
+    NAME = "ILSVRC2012_train"
+    URL = "http://www.image-net.org/challenges/LSVRC/2012/"
+    AT_HASH = "a306397ccf9c2ead27155983c254227c0fd938e2"
+    FILES = [
+        "ILSVRC2012_img_train.tar",
+    ]
+    SIZES = [
+        147897477120,
+    ]
+
+    def __init__(self, process_images=True, data_root=None, **kwargs):
+        self.process_images = process_images
+        self.data_root = data_root
+        super().__init__(**kwargs)
+
+    def _prepare(self):
+        if self.data_root:
+            self.root = os.path.join(self.data_root, self.NAME)
+        else:
+            cachedir = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+            self.root = os.path.join(cachedir, "autoencoders/data", self.NAME)
+
+        self.datadir = os.path.join(self.root, "data")
+        self.txt_filelist = os.path.join(self.root, "filelist.txt")
+        self.expected_length = 1281167
+        self.random_crop = retrieve(self.config, "ImageNetTrain/random_crop",
+                                    default=True)
+        if not is_prepared(self.root):
+            # prep
+            print("Preparing dataset {} in {}".format(self.NAME, self.root))
+
+            datadir = self.datadir
+            if not os.path.exists(datadir):
+                path = os.path.join(self.root, self.FILES[0])
+                if not os.path.exists(path) or not os.path.getsize(path)==self.SIZES[0]:
+                    import academictorrents as at
+                    atpath = at.get(self.AT_HASH, datastore=self.root)
+                    assert atpath == path
+
+                print("Extracting {} to {}".format(path, datadir))
+                os.makedirs(datadir, exist_ok=True)
+                with tarfile.open(path, "r:") as tar:
+                    tar.extractall(path=datadir)
+
+                print("Extracting sub-tars.")
+                subpaths = sorted(glob.glob(os.path.join(datadir, "*.tar")))
+                for subpath in tqdm(subpaths):
+                    subdir = subpath[:-len(".tar")]
+                    os.makedirs(subdir, exist_ok=True)
+                    with tarfile.open(subpath, "r:") as tar:
+                        tar.extractall(path=subdir)
+
+            filelist = glob.glob(os.path.join(datadir, "**", "*.JPEG"))
+            filelist = [os.path.relpath(p, start=datadir) for p in filelist]
+            filelist = sorted(filelist)
+            filelist = "\n".join(filelist)+"\n"
+            with open(self.txt_filelist, "w") as f:
+                f.write(filelist)
+
+            mark_prepared(self.root)
 
 
     
@@ -475,10 +475,10 @@ class ImageNetSRTrain(ImageNetSR):
         super().__init__(**kwargs)
 
     def get_base(self):
-        with open("data/imagenet_train_hr_indices.p", "rb") as f:
+        with open("Imagenet_data/imagenet_train_hr_indices.p", "rb") as f:
             indices = pickle.load(f)
 
-        dset = ImageNetTrain(data_root="data", process_images=False,)
+        dset = ImageNetTrain(data_root="Imagenet_data", process_images=False,)
         return Subset(dataset=dset, 
                       indices=indices)
     
@@ -493,10 +493,10 @@ class ImageNetSRValidation(ImageNetSR):
         super().__init__(**kwargs)
 
     def get_base(self):
-        with open("data/imagenet_val_hr_indices.p", "rb") as f:
+        with open("Imagenet_data/imagenet_val_hr_indices.p", "rb") as f:
             indices = pickle.load(f)
 
-        dset = ImageNetValidation(data_root="data", process_images=False,)
+        dset = ImageNetValidation(data_root="Imagenet_data", process_images=False,)
 
         return Subset(dset, indices)
     
@@ -505,17 +505,17 @@ class ImageNetSRValidation(ImageNetSR):
 
 
 if __name__ == "__main__":
-    # ImageNetTrain(data_root="data/")
+    ImageNetTrain(data_root="Imagenet_data/")
     # ImageNetValidation(data_root="data/")
 
-    output = ImageNetSRTrain(size=256)
+    # output = ImageNetSRTrain(size=256)
     
-    dataloader = DataLoader(dataset=output, batch_size=32, shuffle=True)
+    # dataloader = DataLoader(dataset=output, batch_size=32, shuffle=True)
 
-    for batch in dataloader:
-        hr_images = batch["image"] 
-        # print(hr_images.shape)
-        lr_images = batch["LR_image"]
-        print(f"Low resolution image shape: {lr_images.shape}")
+    # for batch in dataloader:
+    #     hr_images = batch["image"] 
+    #     # print(hr_images.shape)
+    #     lr_images = batch["LR_image"]
+    #     print(f"Low resolution image shape: {lr_images.shape}")
 
 

@@ -6,251 +6,253 @@ from einops import rearrange, repeat
 from transformers import CLIPTokenizer, CLIPTextModel
 import kornia
 
-# from clip.x_transformer import Encoder, TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
+from clip_encoder.x_transformer import Encoder, TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 
 
 
 
 
-# class AbstractEncoder(nn.Module):
+class AbstractEncoder(nn.Module):
 
-#     def __init__(self):
-#         super().__init__()
+    def __init__(self):
+        super().__init__()
 
 
-#     def encoder(self, *args, **kwargs):
-#         raise NotImplementedError
+    def encoder(self, *args, **kwargs):
+        raise NotImplementedError
     
 
-# class ClassEmbedder(nn.Module):
+class ClassEmbedder(nn.Module):
 
-#     def __init__(self,
-#                  embed_dim,
-#                  n_classes=1000,
-#                  key="class"):
+    def __init__(self,
+                 embed_dim,
+                 n_classes=1000,
+                 key="class"):
         
-#         super().__init__()
-#         self.key = key 
-#         self.embedding = nn.Embedding(n_classes, embed_dim)
+        super().__init__()
+        self.key = key 
+        self.embedding = nn.Embedding(n_classes, embed_dim)
 
 
-#     def forward(self, batch, key=None):
-#         if key is None:
-#             key = self.key 
+    def forward(self, batch, key=None):
+        if key is None:
+            key = self.key 
 
-#         # this is for use in crossattn
-#         c = batch[key][:, None]
-#         c = self.embedding(c)
+        # this is for use in crossattn
+        c = batch[key][:, None]
+        c = self.embedding(c)
 
-#         return c 
+        return c 
     
 
-# class TransformerEmbedder(AbstractEncoder):
+class TransformerEmbedder(AbstractEncoder):
 
-#     """Some transformer encoder layers"""
+    """Some transformer encoder layers"""
 
-#     def __init__(self,
-#                  n_embed,
-#                  n_layer,
-#                  vocab_size,
-#                  max_seq_len=77,
-#                  device="cuda"):
+    def __init__(self,
+                 n_embed,
+                 n_layer,
+                 vocab_size,
+                 max_seq_len=77,
+                 device="cuda"):
         
-#         super().__init__()
-#         self.device = device
-#         self.transformer = TransformerWrapper(num_tokens=vocab_size,
-#                                               max_seq_len=max_seq_len,
-#                                               attn_layers=Encoder(dim=n_embed, depth=n_layer))
+        super().__init__()
+        self.device = device
+        self.transformer = TransformerWrapper(num_tokens=vocab_size,
+                                              max_seq_len=max_seq_len,
+                                              attn_layers=Encoder(dim=n_embed, depth=n_layer))
         
 
-#     def forward(self, tokens):
+    def forward(self, tokens):
 
-#         tokens = tokens.to(self.device)
-#         z = self.transformer(tokens, return_embeddings=True)
-#         return z 
+        tokens = tokens.to(self.device)
+        z = self.transformer(tokens, return_embeddings=True)
+        return z 
     
-#     def encode(self, x):
-#         return self(x)
-    
-
-# class BERTTokenizer(AbstractEncoder):
-
-#     """Uses a pretrained BERT tokenizer by huggingface. vocab size: 30522 (?)"""
-
-#     def __init__(self,
-#                  device="cuda",
-#                  vq_interface=True,
-#                  max_length=77):
-        
-#         super().__init__()
-
-#         from transformers import BertTokenizerFast
-#         self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
-#         self.device = device
-#         self.vq_interface = vq_interface
-#         self.max_length = max_length
-
-
-#     def forward(self, 
-#                 text):
-        
-#         batch_encoding = self.tokenizer(text,
-#                                         truncation=True,
-#                                         max_length=self.max_length,
-#                                         return_length=True,
-#                                         return_overflowing_tokens=False,
-#                                         padding="max_length",
-#                                         return_tensors="pt")
-        
-#         tokens = batch_encoding["input_ids"].to(self.device)
-
-#         return tokens
+    def encode(self, x):
+        return self(x)
     
 
-#     @torch.no_grad()
-#     def encode(self, text):
-#         tokens = self(text)
-#         if not self.vq_interface:
-#             return tokens
+class BERTTokenizer(AbstractEncoder):
+
+    """Uses a pretrained BERT tokenizer by huggingface. vocab size: 30522 (?)"""
+
+    def __init__(self,
+                 device="cuda",
+                 vq_interface=True,
+                 max_length=77):
         
-#         return None, None, [None, None, tokens]
+        super().__init__()
+
+        from transformers import BertTokenizerFast
+        self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        self.device = device
+        self.vq_interface = vq_interface
+        self.max_length = max_length
+
+
+    def forward(self, 
+                text):
+        
+        batch_encoding = self.tokenizer(text,
+                                        truncation=True,
+                                        max_length=self.max_length,
+                                        return_length=True,
+                                        return_overflowing_tokens=False,
+                                        padding="max_length",
+                                        return_tensors="pt")
+        
+        tokens = batch_encoding["input_ids"].to(self.device)
+
+        return tokens
     
 
-#     def decode(self, text):
-#         return text
+    @torch.no_grad()
+    def encode(self, text):
+        tokens = self(text)
+        if not self.vq_interface:
+            return tokens
+        
+        return None, None, [None, None, tokens]
     
 
-# class BERTEmbedder(AbstractEncoder):
+    def decode(self, text):
+        return text
+    
 
-#     """Uses the BERT tokenizer model and add some transformer encoder layers"""
+class BERTEmbedder(AbstractEncoder):
 
-#     def __init__(self,
-#                  n_embed,
-#                  n_layer,
-#                  vocab_size=30522,
-#                  max_seq_len=77,
-#                  device="cuda",
-#                  use_tokenizer = True,
-#                  embedding_dropout=0.0):
+    """Uses the BERT tokenizer model and add some transformer encoder layers"""
+
+    def __init__(self,
+                 n_embed,
+                 n_layer,
+                 vocab_size=30522,
+                 max_seq_len=77,
+                 device="cuda",
+                 use_tokenizer = True,
+                 embedding_dropout=0.0):
         
-#         super().__init__()
+        super().__init__()
 
-#         self.use_tknz_fn = use_tokenizer
-#         if self.use_tknz_fn:
-#             self.tknz_fn = BERTTokenizer(vq_interface=False,
-#                                          max_length=max_seq_len)
+        self.use_tknz_fn = use_tokenizer
+        if self.use_tknz_fn:
+            self.tknz_fn = BERTTokenizer(vq_interface=False,
+                                         max_length=max_seq_len)
             
-#         self.device = device
-#         self.transformer = TransformerWrapper(num_tokens=vocab_size,
-#                                               max_seq_len=max_seq_len,
-#                                               attn_layers=Encoder(dim=n_embed, depth=n_layer),
-#                                               emb_dropout=embedding_dropout)
+        self.device = device
+        self.transformer = TransformerWrapper(num_tokens=vocab_size,
+                                              max_seq_len=max_seq_len,
+                                              attn_layers=Encoder(dim=n_embed, depth=n_layer),
+                                              emb_dropout=embedding_dropout)
         
 
 
-#     def forward(self, text):
+    def forward(self, text):
 
-#         if self.use_tknz_fn:
-#             tokens = self.tknz_fn(text).cuda()
+        if self.use_tknz_fn:
+            tokens = self.tknz_fn(text).cuda()
 
-#         else:
-#             tokens = text 
+        else:
+            tokens = text 
 
-#         z = self.transformer(tokens, return_embeddings=True)
+        z = self.transformer(tokens, return_embeddings=True)
 
-#         return z 
+        return z 
     
 
-#     def encode(self, text):
-#         return self(text)
+    def encode(self, text):
+        return self(text)
     
 
-# class SpatialRescaler(nn.Module):
+class SpatialRescaler(nn.Module):
 
-#     def __init__(self,
-#                  n_stages=1,
-#                  method="bilinear",
-#                  multiplier=0.5,
-#                  in_channels=3,
-#                  out_channels=None,
-#                  bias=False):
+    def __init__(self,
+                 n_stages=1,
+                 method="bilinear",
+                 multiplier=0.5,
+                 in_channels=3,
+                 out_channels=None,
+                 bias=False):
         
-#         super().__init__()
-#         self.n_stages = n_stages
+        super().__init__()
+        self.n_stages = n_stages
 
-#         assert self.n_stages >= 0
-#         assert method in ["nearest", "linear", "bilinear", "trilinear", "bicubic", "area"]
+        assert self.n_stages >= 0
+        assert method in ["nearest", "linear", "bilinear", "trilinear", "bicubic", "area"]
 
-#         self.multiplier = multiplier
-#         self.interpolator = partial(nn.functional.interpolate, mode=method)
-#         self.remap_output = out_channels is not None
+        self.multiplier = multiplier
+        self.interpolator = partial(nn.functional.interpolate, mode=method)
+        self.remap_output = out_channels is not None
 
-#         if self.remap_output:
-#             print(f"Spatial Rescaler mapping from {in_channels} to {out_channels} channels after resizing.")
-#             self.channel_mapper = nn.Conv2d(in_channels,
-#                                             out_channels,
-#                                             1,
-#                                             bias=bias)
+        if self.remap_output:
+            print(f"Spatial Rescaler mapping from {in_channels} to {out_channels} channels after resizing.")
+            self.channel_mapper = nn.Conv2d(in_channels,
+                                            out_channels,
+                                            1,
+                                            bias=bias)
             
         
 
-#     def forward(self, x):
+    def forward(self, x):
         
-#         for stage in range(self.n_stages):
-#             x = self.interpolator(x, scale_factor=self.multiplier)
+        for stage in range(self.n_stages):
+            x = self.interpolator(x, scale_factor=self.multiplier)
 
-#         if self.remap_output:
-#           x = self.channel_mapper(x)
+        if self.remap_output:
+          x = self.channel_mapper(x)
 
-#         return x 
-
-
-#     def encode(self, x):
-#         return self(x)
+        return x 
 
 
-# class FrozenCLIPEmbedder(AbstractEncoder):
+    def encode(self, x):
+        return self(x)
 
-#     """Uses the CLIP transformer encoder for text (from Huggingface)"""
 
-#     def __init__(self,
-#                  version="openai/clip-vit-large-patch14",
-#                  device="cuda",
-#                  max_length=77):
+class FrozenCLIPEmbedder(AbstractEncoder):
+
+    """Uses the CLIP transformer encoder for text (from Huggingface)"""
+
+    def __init__(self,
+                 version="openai/clip-vit-large-patch14",
+                 device="cuda",
+                 max_length=77):
         
-#         super().__init__()
-#         self.tokenizer = CLIPTokenizer.from_pretrained(version)
-#         self.transformer = CLIPTextModel.from_pretrained(version)
-#         self.device = device
-#         self.max_length = max_length
-#         self.freeze()
+        super().__init__()
+        self.tokenizer = CLIPTokenizer.from_pretrained(version)
+        self.transformer = CLIPTextModel.from_pretrained(version)
+        self.device = device
+        self.max_length = max_length
+        self.freeze()
 
-#     def freeze(self):
+    def freeze(self):
 
-#         self.transformer = self.transformer.eval()
-#         for param in self.parameters():
-#             param.requires_grad = False 
+        self.transformer = self.transformer.eval()
+        for param in self.parameters():
+            param.requires_grad = False 
 
-#     def forward(self, text):
+    def forward(self, text):
 
-#         batch_encoding = self.tokenizer(text,
-#                                         truncation=True,
-#                                         max_length=self.max_length,
-#                                         return_length=True,
-#                                         return_overflowing_tokens=False,
-#                                         padding="max_length",
-#                                         return_tensors="pt")
+        print(f"what is the input data: >>> {text.shape}")
+
+        batch_encoding = self.tokenizer(text,
+                                        truncation=True,
+                                        max_length=self.max_length,
+                                        return_length=True,
+                                        return_overflowing_tokens=False,
+                                        padding="max_length",
+                                        return_tensors="pt")
         
 
-#         tokens = batch_encoding["input_ids"].to(self.device)
-#         outputs = self.transformer(input_ids=tokens)
+        tokens = batch_encoding["input_ids"].to(self.device)
+        outputs = self.transformer(input_ids=tokens)
 
-#         z = outputs.last_hidden_state 
-#         return z 
+        z = outputs.last_hidden_state 
+        return z 
     
 
-#     def encode(self, text):
-#         return self(text)
+    def encode(self, text):
+        return self(text)
     
 
 

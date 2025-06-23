@@ -67,4 +67,4 @@ model:
           target: torch.nn.Identity
 
     cond_stage_config:
-      target: clip.clip.FrozenCLIPEmbedder
+      target: clip_encoder.modules.FrozenCLIPEmbedder
