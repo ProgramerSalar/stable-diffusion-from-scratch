@@ -7,3 +7,4 @@ VAE/models/
 vqvae/vq-f4/
 Diffusion/bedroom/
 Imagenet_data/
+coco_data/
