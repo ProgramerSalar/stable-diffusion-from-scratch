@@ -84,7 +84,7 @@ __conditioning_keys__ = {'concat': 'c_concat',
                          'adm': 'y'}
 
 
-class DDPM(nn.Module):
+class DDPM(pl.LightningModule):
 
     # classic DDPM with Gaussian diffusion, in image space 
 
@@ -594,24 +594,37 @@ class LatentDiffusion(DDPM):
                   return_original_cond=False,
                   bs=None):
         
+
+        # print(f"what is the data to get batch : >>>>>>>> {batch}")
+        # print(f"what is the information in k: >>>> {k}")
         x = super().get_input(batch, k)
+        # print(f"what is the input data to get [get_input function]: >>>>>>> {x}")
 
         if bs is not None:
             x = x[:bs]
+        
+
         x = x.half().cuda()
-        print("what is the shape of input data in [DDPM -class]: >>>>>>>> ", x.shape)
+        # print("what is the shape of input data in [DDPM -class]: >>>>>>>> ", x.shape)
 
         encoder_posterior = self.encode_first_stage(x)
+        # print(f"what is the output to get function [encode_first_stage]: >>>>>> {encoder_posterior}")
+
 
         z = self.get_first_stage_encoding(encoder_posterior).detach()
+        # print(f"what is the data to get function [get_first_stage_encoding]: >>>>> {z.shape}")
 
         if self.model.conditional_key is not None:
-            if cond_key is None:
-                cond_key = self.cond_stage_key
 
-            if cond_key != self.first_stage_key:
-                if cond_key in ['caption', 'coordination_bbox']:
+            if cond_key is None:
+                print(f"is this working [cond_key] is None")
+                cond_key = self.cond_stage_key
+                # print(f"what is the output to return : >>>> {cond_key}")  # 'txt'
+
+            if cond_key != self.first_stage_key:    # 'txt' != 'image'
+                if cond_key in ['caption', 'coordination_bbox', 'txt']:
                     xc = batch[cond_key]
+                    # print(f"what is the output to get in the caption: >>>> {xc}")
 
                 elif cond_key == 'class_label':
                     xc = batch

@@ -99,27 +99,29 @@ if __name__ == "__main__":
         ).to("cuda:0")
     
     
-    for batch in train_loader:
-        print(f"check the batch size: >>> {batch['image'].shape}")
-        print(f"check the caption of image: >>>> {batch['txt']}")
-        # break
+    # for batch in train_loader:
+    #     print(f"check the batch size: >>> {batch['image'].shape}")
+    #     print(f"check the caption of image: >>>> {batch['txt']}")
+    #     # break
 
-        output = model(batch["image"],
-                       batch["txt"])
+    #     output = model(batch["image"],
+    #                    batch["txt"])
         
-        break
+    #     break
     
 
 
-    # trainer = pl.Trainer(
-    #     max_epochs=10,
-    #     devices=1,
-    #     accelerator="gpu",
-    #     precision="16-mixed"
-    # )
+    trainer = pl.Trainer(
+        max_epochs=10,
+        devices=1,
+        accelerator="gpu",
+        precision="16-mixed"
+    )
 
 
-    # trainer.fit(LatentDiffusion(train_loader, ))
+    trainer.fit(model,
+                train_dataloaders=train_loader,
+                val_dataloaders=val_loader)
 
 
 

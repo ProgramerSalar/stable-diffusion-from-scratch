@@ -233,8 +233,8 @@ class FrozenCLIPEmbedder(AbstractEncoder):
 
     def forward(self, text):
 
-        print(f"what is the input data: >>> {text}")
-        print(f"what is the input data: >>> {text.shape}")
+        # print(f"what is the input data: >>> {text}")
+        # print(f"what is the input data: >>> {text.shape}")
 
         batch_encoding = self.tokenizer(text,
                                         truncation=True,
