@@ -50,6 +50,10 @@ class CocoDataset(Dataset):
         caption_ann = self.coco.loadAnns(caption_id)[0]
         caption = caption_ann['caption']
 
+        # return image, caption
+        image = image/127.5 - 1.0
+        image = image.to(torch.float16)
+        
         return image, caption
     
 
@@ -68,11 +72,18 @@ if __name__ == "__main__":
 
 
     # initial dataset 
-    dataset = CocoDataset(
+    train_dataset = CocoDataset(
         root_dir = "coco_data/train2017",
         annotation_file="coco_data/captions_train2017.json",
         transform=transform
     )
+    val_dataset = CocoDataset(
+        root_dir = "coco_data/val2017",
+        annotation_file="coco_data/captions_val2017.json",
+        transform=transform
+    )
+
+
 
 
     def collate_fn(batch):
@@ -89,27 +100,43 @@ if __name__ == "__main__":
     
 
     train_loader = DataLoader(
-        dataset,
+        train_dataset,
+        batch_size=4,
+        shuffle=True
+    )
+    val_loader = DataLoader(
+        val_dataset,
         batch_size=4,
         shuffle=True
     )
 
-    for images, captions in train_loader:
-        # print(f"Image batch shape: {images.shape}")
-        # print(f"caption batch shape: {captions}")
-
-        image = images[0]
-        print(f"what is the shape of image: {image.shape}")
-        caption = captions[0]
-        print(f"what is the image caption: {caption}")
-
-        image = image.permute(1, 2, 0).numpy()
-        image = (image * 255).astype("uint8")
-        image_pil = Image.fromarray(image)
-        image_pil.save(f"Diffusion/data/sample/{caption}.jpg")
     
 
+    # from torchvision.utils import save_image
+
+    for images, captions in train_loader:
+        print(images.shape)
         break
+
+    #     caption = captions[0]
+    
+    #     print(f"Image batch shape: {images}")
+    #     # print(f"caption batch shape: {captions}")
+
+    #     image = images[0]
+    #     print(f"what is the shape of image: {image.shape}")
+    #     caption = captions[0]
+    #     print(f"what is the image caption: {caption}")
+
+    #     image = image.to(torch.float32)
+    #     image = (image + 1.0) / 2.0
+    #     image = image.permute(1, 2, 0).numpy().astype('uint8')
+    #     image_pil = Image.fromarray(image)
+    #     image_pil.save(f"Diffusion/data/sample/{caption}.jpg")
+    #     # save_image(image, f"Diffusion/data/sample/{caption}.jpg")
+    
+
+        # break
 
     
 
