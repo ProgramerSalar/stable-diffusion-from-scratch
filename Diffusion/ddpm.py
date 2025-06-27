@@ -340,6 +340,22 @@ class DDPM(pl.LightningModule):
 
         return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
                 extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape).to("cuda:0") * noise)
+    
+
+    def get_loss(self, pred, target, mean=True):
+        if self.loss_type == 'l1':
+            loss = (target - pred).abs()
+            if mean:
+                loss = loss.mean()
+        elif self.loss_type == 'l2':
+            if mean:
+                loss = torch.nn.functional.mse_loss(target, pred)
+            else:
+                loss = torch.nn.functional.mse_loss(target, pred, reduction='none')
+        else:
+            raise NotImplementedError("unknown loss type '{loss_type}'")
+
+        return loss
 
     
 # ---------------------------------------------------
@@ -392,8 +408,14 @@ class DDPM(pl.LightningModule):
 
 
     def shared_step(self, batch):
-        x = self.get_input(batch, self.first_stage_key)
-        loss, loss_dict = self(x)
+        inputs = self.get_input(batch, self.first_stage_key)
+        # print(f"what is the data to get in function [shared_steps]: >>>>> {inputs}")
+
+        x, c = inputs[0], inputs[1]
+        # print(f"what is the shape of x in function [shared_steps]: >>>>> {x.shape}")
+        # print(f"what is the shape of caption in function [shaared_steps]: >>>>>> {c.shape}")
+
+        loss, loss_dict = self(x, c)
         return loss, loss_dict
     
 
@@ -1032,6 +1054,7 @@ class LatentDiffusion(DDPM):
 
         # Apply denosing model to noisy input
         model_output = self.apply_model(x_noisey, t, cond)
+        # print(f"what is the output of model_output function [p_losses]: >>>> {model_output.shape}")   # torch.Size([4, 4, 32, 32])
 
         # Initialize loss dictionary 
         loss_dict = {}
@@ -1045,6 +1068,7 @@ class LatentDiffusion(DDPM):
 
         elif self.parameterization == "eps":
             target = noise  # predict noise 
+            print(f"what is the output to get target variable: >>> {target.shape}") # torch.Size([4, 4, 32, 32])
 
         else:
             raise NotImplementedError()
@@ -1053,13 +1077,14 @@ class LatentDiffusion(DDPM):
         # calculate sample loss (per-element)
         loss_simple = self.get_loss(pred=model_output,
                                     target=target,
-                                    main=False).mean([1, 2, 3])
+                                    mean=False).mean([1, 2, 3])
         
         # store mean simple loss 
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
 
         # Get log variance for current timestep 
-        logvar_t = self.logvar[t].cuda()
+        print(f"what is the time output function [p_losses]: >>> {t}")
+        logvar_t = self.logvar[t]
 
         # compute gamma-weighted loss (for learnable variance)
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
@@ -1188,25 +1213,25 @@ class LatentDiffusion(DDPM):
                 patch_limits_tknd = [torch.LongTensor(self.bbox_tokenizer._crop_encoder(bbox))[None].cuda()
                                      for bbox in patch_limits]  # list of length 1 with tensors of shape (1, 2)
                 
-                print(f"what is the shape of patch_limit_tokenizer number of dim: >>>> {patch_limits_tknd[0].shape}")
+                # print(f"what is the shape of patch_limit_tokenizer number of dim: >>>> {patch_limits_tknd[0].shape}")
 
                 # cut tokenizer crop position from conditionng 
                 assert isinstance(cond, dict), "cond must be dict to be fed into model"
                 cut_cond = cond["c_crossattn"][0][..., :-2].cuda()
                 
-                print(f"what is the shape of cut_cond: >>>>>>>>> {cut_cond.shape}")
+                # print(f"what is the shape of cut_cond: >>>>>>>>> {cut_cond.shape}")
 
 
                 adapted_cond = torch.stack([torch.cat([cut_cond, p], dim=1) for p in patch_limits_tknd])
                 adapted_cond = rearrange(adapted_cond, 'l b n -> (l b) n')
 
-                print(f"what is the shape of Adaptive condition: >>>>>>> {adapted_cond.shape}")
+                # print(f"what is the shape of Adaptive condition: >>>>>>> {adapted_cond.shape}")
 
                 adapted_cond = self.get_learned_conditioning(adapted_cond)
-                print(f"what is the shape of Adaptive condition [After applying get_learned_condition class]: >>>>>>> {adapted_cond.shape}")
+                # print(f"what is the shape of Adaptive condition [After applying get_learned_condition class]: >>>>>>> {adapted_cond.shape}")
 
                 adapted_cond = rearrange(adapted_cond, '(l b) n d -> l b n d', l=z.shape[-1])
-                print(f"what is the shape of Adaptive condition [After rearring the shape]: >>>>>>> {adapted_cond.shape}")
+                # print(f"what is the shape of Adaptive condition [After rearring the shape]: >>>>>>> {adapted_cond.shape}")
 
                 cond_list = [{'c_crossattn': [e]} for e in adapted_cond]
 
