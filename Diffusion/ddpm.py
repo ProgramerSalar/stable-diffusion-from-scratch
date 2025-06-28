@@ -178,10 +178,10 @@ class DDPM(pl.LightningModule):
         self.loss_type = loss_type
 
         self.learn_logvar = learn_logvar
-        self.logvar = torch.full(fill_value=logvar_init, size=(self.num_timesteps,))
+        self.logvar = torch.full(fill_value=logvar_init, size=(self.num_timesteps,)).to("cuda:0")
 
         if self.learn_logvar:
-            self.logvar = nn.Parameter(self.logvar, requires_grad=True)
+            self.logvar = nn.Parameter(self.logvar, requires_grad=True).to("cuda:0")
 
 
 
@@ -687,6 +687,14 @@ class LatentDiffusion(DDPM):
                 c = {'pos_x': pos_x,
                      'pos_y': pos_y}
                 
+        
+
+        z = z.half()
+        c = c.half()
+
+        # print(f"what is the dtype of image data: >>>> {z}")
+        # print(f"what is the dtype of caption of : >>>> {c}")
+                
         out = [z, c]
 
         if return_first_stage_outputs:
@@ -1068,7 +1076,7 @@ class LatentDiffusion(DDPM):
 
         elif self.parameterization == "eps":
             target = noise  # predict noise 
-            print(f"what is the output to get target variable: >>> {target.shape}") # torch.Size([4, 4, 32, 32])
+            # print(f"what is the output to get target variable: >>> {target.shape}") # torch.Size([4, 4, 32, 32])
 
         else:
             raise NotImplementedError()
@@ -1084,6 +1092,7 @@ class LatentDiffusion(DDPM):
 
         # Get log variance for current timestep 
         print(f"what is the time output function [p_losses]: >>> {t}")
+        print(f"which to get logvar: {self.logvar}")
         logvar_t = self.logvar[t]
 
         # compute gamma-weighted loss (for learnable variance)
@@ -1329,7 +1338,7 @@ class LatentDiffusion(DDPM):
 
     @rank_zero_only
     @torch.no_grad()
-    def on_train_batch_start(self, batch, batch_idx, dataloader_idx):
+    def on_train_batch_start(self, batch, batch_idx):
         # only for very first batch
         if self.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0 and not self.restarted_from_ckpt:
             assert self.scale_factor == 1., 'rather not use custom rescaling and std-rescaling simultaneously'

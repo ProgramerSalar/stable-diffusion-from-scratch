@@ -115,8 +115,9 @@ class CheckpointFunction(torch.autograd.Function):
         with torch.enable_grad():
             # create shallow copies of tensors (avoids in-place modification issues)
             shallow_copies = [x.view_as(x) for x in ctx.input_tensors]
+            print(f"what is the output to get to this shallow_copies: function [backward] class [CheckpointFunction]: >>>> {shallow_copies}")
             # Recompute forward pass using stored function and modified inputs.
-            output_tensors = ctx.num_function(*shallow_copies)
+            output_tensors = ctx.run_function(*shallow_copies)
 
 
         # compute gradients via autograd

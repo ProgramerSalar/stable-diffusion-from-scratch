@@ -207,6 +207,12 @@ class BasicTransformerBlock(nn.Module):
     
 
     def _forward(self, x, context=None):
+        # print(f"check the data type : {x}")
+        # x = x.to(torch.float32)
+        print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")
+
+        
+        
         x = self.attn1(self.norm1(x)) + x 
         x = self.attn2(self.norm2(x), context=context) + x 
         x = self.ff(self.norm3(x)) + x 
