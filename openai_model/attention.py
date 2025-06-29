@@ -46,11 +46,26 @@ class CrossAttention(nn.Module):
             nn.Dropout(dropout)
         )
 
+        self.convert_to_float16()
+
+    def convert_to_float16(self):
+
+        """Convert all linear layer parameters to float16"""
+        for layer in [self.to_q, self.to_k, self.to_v, self.to_out[0]]:
+            layer.weight.data = layer.weight.data.half()
+
+            if layer.bias is not None:
+                layer.bias.data = layer.bias.data.half()
+
+                
+
 
     def forward(self, x, context=None, mask=None):
+        print(f"what is the dtype of functon crossAttention : >>> {x.dtype}")
         h = self.heads 
         context = default(context, x)
 
+        print(f"what is the dtype of query: >>>> {self.to_q}")
         q = self.to_q(x)
         k = self.to_k(context)
         v = self.to_v(context)
@@ -208,13 +223,21 @@ class BasicTransformerBlock(nn.Module):
 
     def _forward(self, x, context=None):
         # print(f"check the data type : {x}")
-        # x = x.to(torch.float32)
-        print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")
+        x_norm = x.to(torch.float32)
+        print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")   # torch.Size([4, 1024, 320]) and dtype: >> torch.float16
 
         
-        
-        x = self.attn1(self.norm1(x)) + x 
-        x = self.attn2(self.norm2(x), context=context) + x 
+        norm1_x = self.norm1(x_norm)
+        norm1_x = norm1_x.half()
+        print(f"check the dtype of norm_x : {norm1_x.shape} and type: >>> {norm1_x.dtype}") # torch.Size([4, 1024, 320]) and type: >>> torch.float16
+        x = self.attn1(norm1_x) + x
+
+        x = x.to(torch.float32)
+        norm2_x = self.norm2(x)
+        norm2_x = norm2_x.half()
+        x = self.attn2(norm2_x, context=context) + x
+
+        # x = self.attn2(self.norm2(x), context=context) + x 
         x = self.ff(self.norm3(x)) + x 
 
         return x 
