@@ -556,6 +556,8 @@ class UNetModel(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
+
+        # print(f"what is the input data [class-UnetModel]: >>> {x.shape}")
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
@@ -568,17 +570,24 @@ class UNetModel(nn.Module):
             emb = emb + self.label_emb(y)
 
         h = x.type(self.dtype)
+        # print(f"what is the shape of input data: [class-UnetModel]: >>> {h.shape}")
+
         for module in self.input_blocks:
             h = module(h, emb, context)
             hs.append(h)
 
+        
         h = self.middle_block(h, emb, context)
+
 
         for module in self.output_blocks:
             # print(f"what is the shape of down block: {hs.pop().shape}")
             # print(f"what is the shape of middle block >>>>>>>>>>>>>>>: {h.shape}")
             h = torch.cat([h, hs.pop()], dim=1)
             h = module(h, emb, context)
+
+        # print(f"what is the shape of output [class-UnetModel]: >>> {h.shape}")
+
         h = h.type(x.dtype)
         if self.predict_codebook_ids:
             return self.id_predictor(h)

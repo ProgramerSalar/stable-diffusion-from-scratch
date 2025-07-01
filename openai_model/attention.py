@@ -193,6 +193,8 @@ class BasicTransformerBlock(nn.Module):
                  checkpoint=True):
         
         super().__init__()
+
+        print(f"what input to get function [BasicTransformerBlock]: Dim = {dim}, n_heads = {n_heads}, d_head = {d_head}, context_dim = {context_dim} ")
         self.attn1 = CrossAttention(query_dim=dim,
                                     heads=n_heads,
                                     dim_head=d_head,
@@ -215,33 +217,58 @@ class BasicTransformerBlock(nn.Module):
 
 
     def forward(self, x, context=None):
+        print(f"what is the context: {context.shape} and what is the shape of data: {x.shape}")
         return checkpoint(func=self._forward,
                           inputs=(x, context),
                           params=self.parameters(),
                           flag=self.checkpoint)
+        
+        # print(f"what is the output to get in checkpoint")
+        # return checkpoint
     
 
     def _forward(self, x, context=None):
-        # print(f"check the data type : {x}")
-        x_norm = x.to(torch.float32)
-        print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")   # torch.Size([4, 1024, 320]) and dtype: >> torch.float16
-
         
-        norm1_x = self.norm1(x_norm)
-        norm1_x = norm1_x.half()
-        print(f"check the dtype of norm_x : {norm1_x.shape} and type: >>> {norm1_x.dtype}") # torch.Size([4, 1024, 320]) and type: >>> torch.float16
-        x = self.attn1(norm1_x) + x
+        # print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")   # torch.Size([4, 1024, 320]) and dtype: >> torch.float16
+        # print(f"check then norm weight dtype: {self.norm1.weight.dtype} and norm weight: {self.norm1.weight}")
+       
 
-        x = x.to(torch.float32)
-        norm2_x = self.norm2(x)
-        norm2_x = norm2_x.half()
-        x = self.attn2(norm2_x, context=context) + x
-
-        # x = self.attn2(self.norm2(x), context=context) + x 
+        x = self.attn1(self.norm1(x)) + x
+        x = self.attn2(self.norm2(x), context=context) + x 
         x = self.ff(self.norm3(x)) + x 
+
+        # print(f"what is the shape of x: {x.shape} and dtype of data: {x.dtype}")
 
         return x 
     
+
+
+
+
+class Testing(nn.Module):
+
+    def __init__(self,
+                 dim, 
+                 ):
+        
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim)
+        
+
+    def forward(self, x, context=None):
+      
+        print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")   # torch.Size([4, 1024, 320]) and dtype: >> torch.float16
+
+        print(f"check then norm weight dtype: {self.norm1.weight.dtype}")   # torch.float32
+        x = self.norm1(x)
+        
+
+        return x 
+    
+
+
+
+
 
 def zero_module(module):
 
@@ -269,6 +296,7 @@ class SpatialTransformer(nn.Module):
     def __init__(self, in_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None):
         super().__init__()
+        print(f"Let's see the input of [class-SpatialTransformer] in_channels =  {in_channels}, n_heads = {n_heads}, d_head = {d_head}, context_dim = {context_dim}")
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)
@@ -292,8 +320,8 @@ class SpatialTransformer(nn.Module):
 
     def forward(self, x, context=None):
 
-        # print("what is the input data in [spatialTransformer]: ", x.shape)
-        # print("what is the context in [spatialTransformer]: ", context.shape)
+        print("what is the input data in [spatialTransformer]: ", x.shape)
+        print("what is the context in [spatialTransformer]: ", context.shape)
         # note: if no context is given, cross-attention defaults to self-attention
         b, c, h, w = x.shape
         x_in = x
@@ -306,8 +334,12 @@ class SpatialTransformer(nn.Module):
         
         for block in self.transformer_blocks:
             # print("block: ", block)
+            # print(f"what is the tensor of data in [class-SpatialTransformer]: {x}")
+            # print(f"what is the tensor of context in [class-SpatialTransformer]: {context}")
+
             x = block(x, context=context)
-            # print("what is the shape [After Transformer Block]: ", x.shape)
+            print(f"what is the shape [After Transformer Block]: {x.shape} and dtype = {x.dtype}")
+
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
         x = self.proj_out(x)
 
@@ -629,12 +661,45 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------------------------------------------------
 
-    attention_block = AttentionBlock(channels=128,
-                                     num_heads=4,
-                                     num_head_channels=-1,
-                                     use_checkpoint=True).half().cuda()
+    # attention_block = AttentionBlock(channels=128,
+    #                                  num_heads=4,
+    #                                  num_head_channels=-1,
+    #                                  use_checkpoint=True).half().cuda()
     
-    x = torch.randn(4, 128, 62).half().cuda()
-    # print("x: ", x)
-    output = attention_block(x)
-    output
+    # x = torch.randn(4, 128, 62).half().cuda()
+    # # print("x: ", x)
+    # output = attention_block(x)
+    # output
+
+    # ---------------------------------------------------------------------
+                ## BasicTransformerBlock 
+    output = BasicTransformerBlock(dim=320,
+                                   n_heads=8,
+                                   d_head=64,
+                                   context_dim=768).cuda().half()
+    
+    x = torch.randn(4, 1024, 320).half().cuda()
+    context = torch.randn(4, 77, 768).half().cuda()
+
+    output = output(x, context)
+    print(output)
+
+
+    # -----------------------------------------------------------------
+            ## 
+
+    # ------------------------------------------------------------------------
+                ## Spatial Transformer 
+    
+    # model = SpatialTransformer(in_channels=320,
+    #                            n_heads=8,
+    #                            d_head=64,
+    #                            depth=1,
+    #                            context_dim=768).cuda()
+    
+
+    # x = torch.randn(4, 320, 32, 32).half().cuda()
+    # context = torch.randn(4, 77, 768).half().cuda()
+
+    # output = model(x, context)
+    # print(output)

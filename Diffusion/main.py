@@ -2,7 +2,18 @@ from Diffusion.utils import instantiate_from_config
 import yaml
 from Diffusion.ddpm import LatentDiffusion
 from Diffusion.data.dataset import DataModuleFromConfig
-import torch 
+import torch, os
+
+# Override checkpoint globally
+def safe_checkpoint(function, *args, **kwargs):
+    return function(*args, **kwargs)
+
+torch.utils.checkpoint.checkpoint = safe_checkpoint
+
+# Set environment variable as extra precaution
+os.environ['TORCH_CHECKPOINT_DISABLE'] = '1'
+
+
 
 
 
@@ -86,6 +97,11 @@ if __name__ == "__main__":
 
     )
 
+    def safe_checkpoint(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    torch.utils.checkpoint.checkpoint = safe_checkpoint
+
 
 
     import pytorch_lightning as pl
@@ -94,21 +110,12 @@ if __name__ == "__main__":
             first_stage_config=config["model"]["params"]["first_stage_config"],
             cond_stage_config=config["model"]["params"]["cond_stage_config"],
             unet_config = config["model"]["params"]["unet_config"],
-            # conditioning_key=config["model"]["params"]["conditioning_key"],
             **{k: v for k, v in config["model"]["params"].items() if k not in ["unet_config", "first_stage_config", "cond_stage_config"]}
-        ).to("cuda:0")
+        ).to("cuda:0").half()
     
-    
-    # for batch in train_loader:
-    #     print(f"check the batch size: >>> {batch['image'].shape}")
-    #     print(f"check the caption of image: >>>> {batch['txt']}")
-    #     # break
+ 
 
-    #     output = model(batch["image"],
-    #                    batch["txt"])
-        
-    #     break
-    
+
 
 
     trainer = pl.Trainer(
