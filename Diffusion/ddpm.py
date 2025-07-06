@@ -626,8 +626,8 @@ class LatentDiffusion(DDPM):
             x = x[:bs]
         
 
-        x = x.half().cuda()
-        # print("what is the shape of input data in [DDPM -class]: >>>>>>>> ", x.shape)
+        # x = x.half().cuda()
+        print("what is the shape of input data in [DDPM -class]: >>>>>>>> ", x.shape)
 
         encoder_posterior = self.encode_first_stage(x)
         # print(f"what is the output to get function [encode_first_stage]: >>>>>> {encoder_posterior}")
@@ -689,8 +689,8 @@ class LatentDiffusion(DDPM):
                 
         
 
-        z = z.half()
-        c = c.half()
+        z = z
+        c = c
 
         # print(f"what is the dtype of image data: >>>> {z}")
         # print(f"what is the dtype of caption of : >>>> {c}")
@@ -846,10 +846,11 @@ class LatentDiffusion(DDPM):
                 return decoded
 
             else:
-                print("is this else condition are working...")
+                # print(f"is this else condition are working..., what is the data to get in this [class-ddpm]: {x}")
                 return self.first_stage_model.encode(x)
             
         else:
+            # print(f"is this else condition are working..., what is the data to get in this [class-ddpm]: {x}")
             print("what is the condition are working...")
             return self.first_stage_model.encode(x)
         

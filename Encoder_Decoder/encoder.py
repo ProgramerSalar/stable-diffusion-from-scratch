@@ -82,6 +82,7 @@ class Encoder(nn.Module):
         hs = [self.conv_in(x)]
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
+                print(f"what is the input data [class-Encoder]: {hs[-1]}")
                 h = self.down[i_level].block[i_block](hs[-1], temb)
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)

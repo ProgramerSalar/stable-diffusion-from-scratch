@@ -111,9 +111,11 @@ class ResnetBlock(nn.Module):
                                                     padding=0)
 
     def forward(self, x, temb):
+        print(f"what is the input data [clas-ResnetBlock]: {x} and time embedding: {temb}")
         h = x
         h = self.norm1(h)
         h = nonlinearity(h)
+        print(f"what is the data [class-ResnetBlock]: {h}")
         h = self.conv1(h)
 
         if temb is not None:

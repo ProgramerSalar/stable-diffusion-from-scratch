@@ -25,24 +25,21 @@ if __name__ == "__main__":
     with open(config, 'r') as file:
         config = yaml.safe_load(file)
 
-    # print(f"config: >>>> {config} ")
-
-    # Build components from configs 
-    # first_stage_model = instantiate_from_config(config["model"]["params"]["first_stage_config"])
-    # print(f"first stage config: >>>> {first_stage_model}")
-
-    # cond_stage_model = instantiate_from_config(config["model"]["params"]["cond_stage_config"])
-    # print(f"cond stage config: >>>>> {cond_stage_model}")
-
-    # unet_model = instantiate_from_config(config["model"]["params"]["unet_config"])
-    # print(f"unet model >>>>> {unet_model}")
-
-
+    # Explicitly disable checkpointing in all model components
+    def disable_checkpointing(config_part):
+        print(f"what is the data to get config: {config_part}")
+        if isinstance(config_part, dict):
+            for key in list(config_part.keys()):
+                if key in ["use_checkpoint", "use_gradient_checkpointing"]:
+                    config_part[key] = False
+                else:
+                    disable_checkpointing(config_part[key])
+        elif isinstance(config_part, list):
+            for item in config_part:
+                disable_checkpointing(item)
     
-
-    # print(f"model: >>>> {model}")
-
-    # from Diffusion.data.imagenet import ImageNetTrain, ImageNetValidation, ImageNetSRTrain, ImageNetSRValidation
+    disable_checkpointing(config)
+  
     from Diffusion.data.coco import CocoDataset
 
 
@@ -111,7 +108,7 @@ if __name__ == "__main__":
             cond_stage_config=config["model"]["params"]["cond_stage_config"],
             unet_config = config["model"]["params"]["unet_config"],
             **{k: v for k, v in config["model"]["params"].items() if k not in ["unet_config", "first_stage_config", "cond_stage_config"]}
-        ).to("cuda:0").half()
+        ).to("cuda:0")
     
  
 

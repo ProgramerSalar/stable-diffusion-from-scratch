@@ -69,94 +69,126 @@ def zero_module(module):
         p.detach().zero_()
     return module
 
+# class CheckpointFunction(torch.autograd.Function):
+
+#     """
+#     Custom autograd function for gradient checkpointing.
+#     Reduce memory usage by tracking compute for memory during backward pass.
+#     """
+
+#     @staticmethod
+#     def forward(ctx, run_function, length, *args):
+
+#         print(f"what is input to get functon: [checkpointFunction] >>>> {ctx}")
+
+#         """ 
+#         Forward pass with checkpointing.
+#         Args:
+#             ctx: context object to store information for backward pass 
+#             run_function: Function to execute during forward/backward 
+#             length: Number of input tensors in *args 
+#             *args: Arguments for run_function (tensors * parameters)
+#         """
+
+#         # store the function and arguments in context
+#         ctx.run_function = run_function
+#         print(f"what is the meaning of ctx.run_function in class [checkpointFunction] >>> {ctx.run_function}")
+
+#         # split args: first 'length' items are input tensors
+#         ctx.input_tensors = list(args[:length])
+#         print(f"what is ctx.input_tensors: {ctx.input_tensors}")
+#         # Remaining items are parameters (weights, biases)
+#         ctx.input_params = list(args[length:])
+
+#         # Execute without tracking gradients 
+#         with torch.no_grad():
+#             # IMPORTANT: Pass both inputs AND parameters to function
+#             output_tensors = ctx.run_function(*ctx.input_tensors).half()
+#             print(f"what is the output tensor of [class - CheckpointFunction] method - [forward]: >> {output_tensors} and dtype of this output tensor: >>> {output_tensors.dtype}")
+
+#         return output_tensors
+    
+
+#     @staticmethod
+#     def backward(ctx, *output_grads):
+
+#         # prepare input tensors for recomputation.
+#         # detach(): Remove from computation graph
+#         # .requires_grad_(True): Enables gradient tracking
+#         ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
+#         print(f"what is the input tensor of function [checkpointFunction] method: [backward] >>> {ctx.input_tensors}")
+        
+#         # Re-enableds gradient calculation for recomputation.
+#         with torch.enable_grad():
+#             # create shallow copies of tensors (avoids in-place modification issues)
+#             shallow_copies = [x.view_as(x) for x in ctx.input_tensors]
+#             print(f"what is the output to get to this shallow_copies: function [backward] class [CheckpointFunction]: >>>> {shallow_copies}")
+
+#             # Recompute forward pass using stored function and modified inputs.
+#             output_tensors = ctx.run_function(*shallow_copies)
+#             print(f"what is the output tensor to [class - CheckpointFunction] method [backward] >>> {output_tensors} and shape = {output_tensors.shape}")
+
+
+#         # compute gradients via autograd
+#         input_grads = torch.autograd.grad(
+#             outputs=output_tensors,     # Recomputed tensors
+#             inputs=ctx.input_tensors + ctx.input_tensors,   # input tensors + parameters
+#             grad_outputs=output_grads,  # output gradients
+#             allow_unused=True   # ignore inputs without gradients
+#         )
+
+#         print(f"what is the input gradients in [class-CheckpointFunction]: >>> {input_grads} and what is the shape = {input_grads[0].shape}, {input_grads[1].shape}, {input_grads[2].shape}, {input_grads[3].shape}")
+#         # torch.Size([4, 1024, 320]), torch.Size([4, 77, 768]), torch.Size([4, 1024, 320]), torch.Size([4, 77, 768])
+
+        
+
+#         # deletes store references to free memory
+#         del ctx.input_tensors 
+#         del ctx.input_params 
+#         del output_tensors
+
+#         # Return gradients
+#         # Two none for run_function and length (non-tensor arguments)
+#         # input_grads for input tensors and parameters
+
+#         testing_output = (None, None) + input_grads
+#         print(f"what is the testing shape [class-CheckpointFunction]: {testing_output}")    # (None, None, torch.Size([4, 1024, 320]), torch.Size([4, 77, 768]), torch.Size([4, 1024, 320]), torch.Size([4, 77, 768]))
+
+#         return (None, None) + input_grads
+    
+
 class CheckpointFunction(torch.autograd.Function):
-
-    """
-    Custom autograd function for gradient checkpointing.
-    Reduce memory usage by tracking compute for memory during backward pass.
-    """
-
     @staticmethod
     def forward(ctx, run_function, length, *args):
-
-        print(f"what is input to get functon: [checkpointFunction] >>>> {ctx}")
-
-        """ 
-        Forward pass with checkpointing.
-        Args:
-            ctx: context object to store information for backward pass 
-            run_function: Function to execute during forward/backward 
-            length: Number of input tensors in *args 
-            *args: Arguments for run_function (tensors * parameters)
-        """
-
-        # store the function and arguments in context
         ctx.run_function = run_function
-        print(f"what is the meaning of ctx.run_function in class [checkpointFunction] >>> {ctx.run_function}")
-
-        # split args: first 'length' items are input tensors
         ctx.input_tensors = list(args[:length])
-        print(f"what is ctx.input_tensors: {ctx.input_tensors}")
-        # Remaining items are parameters (weights, biases)
         ctx.input_params = list(args[length:])
 
-        # Execute without tracking gradients 
         with torch.no_grad():
-            # IMPORTANT: Pass both inputs AND parameters to function
-            output_tensors = ctx.run_function(*ctx.input_tensors).half()
-            print(f"what is the output tensor of [class - CheckpointFunction] method - [forward]: >> {output_tensors} and dtype of this output tensor: >>> {output_tensors.dtype}")
-
+            output_tensors = ctx.run_function(*ctx.input_tensors)
         return output_tensors
-    
 
     @staticmethod
     def backward(ctx, *output_grads):
-
-        # prepare input tensors for recomputation.
-        # detach(): Remove from computation graph
-        # .requires_grad_(True): Enables gradient tracking
         ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
-        print(f"what is the input tensor of function [checkpointFunction] method: [backward] >>> {ctx.input_tensors}")
-        
-        # Re-enableds gradient calculation for recomputation.
         with torch.enable_grad():
-            # create shallow copies of tensors (avoids in-place modification issues)
+            # Fixes a bug where the first op in run_function modifies the
+            # Tensor storage in place, which is not allowed for detach()'d
+            # Tensors.
             shallow_copies = [x.view_as(x) for x in ctx.input_tensors]
-            print(f"what is the output to get to this shallow_copies: function [backward] class [CheckpointFunction]: >>>> {shallow_copies}")
-
-            # Recompute forward pass using stored function and modified inputs.
             output_tensors = ctx.run_function(*shallow_copies)
-            print(f"what is the output tensor to [class - CheckpointFunction] method [backward] >>> {output_tensors} and shape = {output_tensors.shape}")
-
-
-        # compute gradients via autograd
         input_grads = torch.autograd.grad(
-            outputs=output_tensors,     # Recomputed tensors
-            inputs=ctx.input_tensors + ctx.input_tensors,   # input tensors + parameters
-            grad_outputs=output_grads,  # output gradients
-            allow_unused=True   # ignore inputs without gradients
+            output_tensors,
+            ctx.input_tensors + ctx.input_params,
+            output_grads,
+            allow_unused=True,
         )
-
-        print(f"what is the input gradients in [class-CheckpointFunction]: >>> {input_grads} and what is the shape = {input_grads[0].shape}, {input_grads[1].shape}, {input_grads[2].shape}, {input_grads[3].shape}")
-        # torch.Size([4, 1024, 320]), torch.Size([4, 77, 768]), torch.Size([4, 1024, 320]), torch.Size([4, 77, 768])
-
-        
-
-        # deletes store references to free memory
-        del ctx.input_tensors 
-        del ctx.input_params 
+        del ctx.input_tensors
+        del ctx.input_params
         del output_tensors
 
-        # Return gradients
-        # Two none for run_function and length (non-tensor arguments)
-        # input_grads for input tensors and parameters
-
-        testing_output = (None, None) + input_grads
-        print(f"what is the testing shape [class-CheckpointFunction]: {testing_output}")    # (None, None, torch.Size([4, 1024, 320]), torch.Size([4, 77, 768]), torch.Size([4, 1024, 320]), torch.Size([4, 77, 768]))
-
+        print(f"what is the Tensor type of input_grads [class-CheckpointFunction]: {input_grads}")
         return (None, None) + input_grads
-    
-
 
         
 

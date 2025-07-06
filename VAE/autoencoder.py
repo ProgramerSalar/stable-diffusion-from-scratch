@@ -113,6 +113,7 @@ class AutoEncoderKL(pl.LightningModule):
 
     def encode(self, x):
         # [(1, 3, 256, 256)] -> ([1, 6, 254, 254])
+        print(f"what is the data to get [class-AutoEncoderKL]: {x}")
         h = self.encoder(x)
         # ([1, 6, 254, 254]) -> ([1, 6, 254, 254])
         moments = self.quant_conv(h)
@@ -141,13 +142,13 @@ class AutoEncoderKL(pl.LightningModule):
         # <Distribution.distribution.DiagonalGaussianDistribution object at 0x000001C7343E6AB0> -> torch.Size([1, 3, 254, 254])
         if sample_posterior:
             z = posterior.sample()
-            z = z.half()
+            z = z
             
            
 
         else:
             z = posterior.mode()
-            z = z.half()
+            z = z
 
         
         dec = self.decode(z)

@@ -130,10 +130,13 @@ class GELU(nn.Module):
 
     def __init__(self, dim_in, dim_out):
         super().__init__()
-        self.proj = nn.Linear(dim_in, dim_out * 2)
-
+        self.proj = nn.Linear(dim_in, dim_out * 2).half()
+        print(f"what is the dim_input = {dim_in} and what is the dim out = {dim_out}")
 
     def forward(self, x):
+        
+        print(f"what is the dtype of input data x [class-GELU]: {x} and let's check the weight of dtype : {self.proj.weight.dtype} and what is the shape of the data: {x.shape}")
+    
         x, gate = self.proj(x).chunk(2, dim=-1)
         return x * nn.functional.gelu(gate)
 
@@ -162,7 +165,7 @@ class FeedForward(nn.Module):
             project_in,
             nn.Dropout(dropout),
             nn.Linear(inner_dim, dim_out)
-        )
+        ).half()
 
 
     def forward(self, x):
@@ -232,12 +235,24 @@ class BasicTransformerBlock(nn.Module):
         # print(f"check the data type : {x.shape} and dtype: >> {x.dtype}")   # torch.Size([4, 1024, 320]) and dtype: >> torch.float16
         # print(f"check then norm weight dtype: {self.norm1.weight.dtype} and norm weight: {self.norm1.weight}")
        
+        
+        # ------
+        # norm1_x = self.norm1(x.float())
+        # norm1_x = norm1_x.half()
+        # x = self.attn1(norm1_x) + x
+
+        # norm2_x = self.norm2(x.float())
+        # norm2_x = norm2_x.half()
+        # x = self.attn2(norm2_x, context) + x 
+
+        # norm3_x = self.norm3(x.float())
+        # x = self.ff(norm3_x.half()) + x 
 
         x = self.attn1(self.norm1(x)) + x
         x = self.attn2(self.norm2(x), context=context) + x 
         x = self.ff(self.norm3(x)) + x 
 
-        # print(f"what is the shape of x: {x.shape} and dtype of data: {x.dtype}")
+        print(f"what is the shape of x: {x.shape} and dtype of data: {x.dtype}")
 
         return x 
     
